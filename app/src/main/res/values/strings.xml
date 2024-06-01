@@ -1,3 +1,8 @@
 <resources>
     <string name="app_name">AndroidCamera</string>
+    <string name="title_activity_chart">ChartActivity</string>
+    <string name="permissios_granted">Permissions granted</string>
+    <string name="permissios_denied">Permissions denied</string>
+
+
 </resources>
