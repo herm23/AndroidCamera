@@ -27,6 +27,15 @@
         tools:layout_editor_absoluteY="45dp" />
 
     <TextView
+        android:id="@+id/txtAverageColor"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif-black"
+        android:textStyle="bold"
+        android:textSize="16dp"
+        android:text="No color detected." />
+
+    <TextView
         android:id="@+id/txtPermissions"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
