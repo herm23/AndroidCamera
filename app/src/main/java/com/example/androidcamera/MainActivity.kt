@@ -1,7 +1,6 @@
 package com.example.androidcamera
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -10,13 +9,12 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.ImageFormat
 import android.graphics.SurfaceTexture
+import android.hardware.Camera
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
-import android.hardware.camera2.CaptureFailure
 import android.hardware.camera2.CaptureRequest
-import android.hardware.camera2.CaptureResult
 import android.media.Image
 import android.media.ImageReader
 import android.os.Bundle
@@ -24,18 +22,19 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
 import android.view.Surface
-import android.view.SurfaceView
 import android.view.TextureView
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.core.app.ActivityCompat
-import kotlin.experimental.and
 
 class MainActivity : ComponentActivity() {
     companion object{
         const val REQUEST_CAMERA_PERMISSION : Int = 1
         const val TAG : String = "Main Activity"
+        const val srfWidth = 1020
+        const val srfHeight = 574
     }
 
     private lateinit var txtPermissions: TextView
@@ -43,6 +42,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var chartBtn: Button
     private lateinit var cameraTxv: TextureView
     private lateinit var cameraCaptureSession: CameraCaptureSession
+
+    private var buffer: ByteArray? = null
+    private var camera: Camera? = null
 
     private lateinit var cameraManager: CameraManager
     private lateinit var cameraDevice: CameraDevice
@@ -86,6 +88,7 @@ class MainActivity : ComponentActivity() {
             requestCameraPermission()
         }else{
             initCam()
+            //initCam2()
         }
 
         //Btn listener
@@ -126,6 +129,7 @@ class MainActivity : ComponentActivity() {
                 txtPermissions.setText(R.string.permissios_granted)
                 Log.i(TAG, "CAMERA permission has been GRANTED.")
 
+                //initCam2();
                 initCam();
             }
         }
@@ -136,8 +140,115 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-
     private fun initCam(){
+
+        cameraTxv.surfaceTextureListener = object: TextureView.SurfaceTextureListener{
+            override fun onSurfaceTextureAvailable(
+                surface: SurfaceTexture,
+                width: Int,
+                height: Int
+            ) {
+                camera = Camera.open()
+                camera?.setDisplayOrientation(90)
+                camera?.setPreviewTexture(cameraTxv.surfaceTexture)
+                val params = camera?.parameters
+                val size = params?.previewSize
+                val bufferSize = size?.width!! * size.height * ImageFormat.getBitsPerPixel(params.previewFormat) / 8
+                buffer = ByteArray(bufferSize)
+
+                camera?.addCallbackBuffer(buffer)
+                camera?.setPreviewCallbackWithBuffer(Camera.PreviewCallback { data, camera ->
+                    onPreviewFrame(data, camera)
+                })
+                camera?.startPreview()
+
+            }
+
+            override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+
+            }
+
+            override fun onSurfaceTextureSizeChanged(
+                surface: SurfaceTexture,
+                width: Int,
+                height: Int
+            ) {
+
+            }
+
+
+            override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
+                return false
+            }
+        }
+
+
+    }
+
+    fun onPreviewFrame(data: ByteArray, camera: Camera) {
+        val size = camera.parameters.previewSize
+        val rgb = yuvToRgb(data, size.width, size.height)
+        val averageColor = calculateAverageColor(rgb)
+        runOnUiThread {
+            txtAverageColor.text = "RGB: ${averageColor.joinToString(", ")}"
+            txtAverageColor.setBackgroundColor(android.graphics.Color.rgb(averageColor[0], averageColor[1], averageColor[2]))
+        }
+        camera.addCallbackBuffer(buffer)
+    }
+
+    private fun yuvToRgb(yuv: ByteArray, width: Int, height: Int): IntArray {
+        val frameSize = width * height
+        val rgb = IntArray(frameSize)
+
+        var y: Int
+        var u: Int
+        var v: Int
+        var r: Int
+        var g: Int
+        var b: Int
+        var index = 0
+        var yp = 0
+
+        while (yp < height) {
+            val uvp = frameSize + (yp shr 1) * width
+            var i = 0
+            while (i < width) {
+                y = 0xff and yuv[yp * width + i].toInt()
+                u = 0xff and yuv[uvp + (i and 1)].toInt()
+                v = 0xff and yuv[uvp + (i and 1) + 1].toInt()
+                u -= 128
+                v -= 128
+                r = y + (1.370705 * v).toInt()
+                g = y - (0.698001 * v + 0.337633 * u).toInt()
+                b = y + (1.732446 * u).toInt()
+                r = if (r < 0) 0 else if (r > 255) 255 else r
+                g = if (g < 0) 0 else if (g > 255) 255 else g
+                b = if (b < 0) 0 else if (b > 255) 255 else b
+                rgb[index++] = 0xff000000.toInt() or (r shl 16) or (g shl 8) or b
+                i++
+            }
+            yp++
+        }
+
+        return rgb
+    }
+
+    private fun calculateAverageColor(rgb: IntArray): IntArray {
+        var rSum = 0
+        var gSum = 0
+        var bSum = 0
+
+        for (color in rgb) {
+            rSum += (color shr 16) and 0xff
+            gSum += (color shr 8) and 0xff
+            bSum += color and 0xff
+        }
+
+        val length = rgb.size
+        return intArrayOf(rSum / length, gSum / length, bSum / length)
+    }
+
+    private fun initCam2(){
         //Camera Initialization
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
         handlerThread = HandlerThread("videoThread")
@@ -182,10 +293,9 @@ class MainActivity : ComponentActivity() {
         }
 
         // Dimensioni della fotocamera (es. 1920x1080)
-        val width = 1920
-        val height = 1080
 
-        imageReader = ImageReader.newInstance(width, height, ImageFormat.YUV_420_888, 2)
+
+        imageReader = ImageReader.newInstance(srfWidth, srfHeight, ImageFormat.YUV_420_888,1)
         imageReader.setOnImageAvailableListener({ reader ->
             val image = reader.acquireLatestImage()
             image?.let {
@@ -240,7 +350,7 @@ class MainActivity : ComponentActivity() {
     private fun startPreview() {
         try {
             val surfaceTexture = cameraTxv.surfaceTexture!!
-            surfaceTexture.setDefaultBufferSize(1920, 1080)
+            surfaceTexture.setDefaultBufferSize(srfWidth, srfHeight)
             val previewSurface = Surface(surfaceTexture)
             val imageReaderSurface = imageReader.surface
 
@@ -273,6 +383,7 @@ class MainActivity : ComponentActivity() {
         val uBuffer = image.planes[1].buffer
         val vBuffer = image.planes[2].buffer
 
+
         val ySize = yBuffer.remaining()
         val uSize = uBuffer.remaining()
         val vSize = vBuffer.remaining()
@@ -284,6 +395,10 @@ class MainActivity : ComponentActivity() {
         yBuffer.get(yData)
         uBuffer.get(uData)
         vBuffer.get(vData)
+
+        Log.i(TAG,"Buffer Y : $yBuffer")
+        Log.i(TAG,"Buffer U : $uBuffer")
+        Log.i(TAG,"Buffer V : $vBuffer")
 
         val width = image.width
         val height = image.height
@@ -325,6 +440,59 @@ class MainActivity : ComponentActivity() {
         Log.d("AverageColorName", "Average color name: $colorName")
         //txtAverageColor.setText("Average color: " + colorName)
     }
+
+
+    /*
+    private fun processImage(image: Image) {
+        val yBuffer = image.planes[0].buffer
+        val uBuffer = image.planes[1].buffer
+        val vBuffer = image.planes[2].buffer
+
+        val ySize = yBuffer.remaining()
+        val uSize = uBuffer.remaining()
+        val vSize = vBuffer.remaining()
+
+        val yData = ByteArray(ySize)
+        val uData = ByteArray(uSize)
+        val vData = ByteArray(vSize)
+
+        yBuffer.get(yData)
+        uBuffer.get(uData)
+        vBuffer.get(vData)
+
+        val width = image.width
+        val height = image.height
+        var sumY = 0L
+        var sumU = 0L
+        var sumV = 0L
+        var pixelCount = 0
+
+        // Conversione YUV a RGB
+        for (i in 0 until height) {
+            for (j in 0 until width) {
+                val yIndex = i * width + j
+                val uvIndex = (i / 2) * (width / 2) + (j / 2)
+
+                val y = yData[yIndex].toInt()
+                val u = uData[uvIndex].toInt()
+                val v = vData[uvIndex].toInt()
+
+                sumY += y
+                sumU += u
+                sumV += v
+                pixelCount++
+            }
+        }
+
+        val avgY = (sumY / pixelCount).toInt()
+        val avgU = (sumU / pixelCount).toInt()
+        val avgV = (sumV / pixelCount).toInt()
+
+        Log.d("AverageColor", "Average Y: $avgY, U: $avgU, V: $avgV")
+        txtAverageColor.setText("Average Y: $avgY, U: $avgU, V: $avgV")
+    }
+
+     */
 
     // Funzione per ottenere il nome del colore (utilizza una libreria esterna o implementa una semplice mappa di colori)
     private fun getColorNameFromRgb(r: Int, g: Int, b: Int): String {
