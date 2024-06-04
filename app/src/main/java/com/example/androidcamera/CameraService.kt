@@ -143,7 +143,7 @@ class CameraService : Service() {
         val avgB = (sumB / pixelCount).toInt()
 
         Log.d("AverageColor", "Average R: $avgR, G: $avgG, B: $avgB")
-        sendColorBroadcast("Average R: $avgR, G: $avgG, B: $avgB")
+        //sendColorBroadcast("Average R: $avgR, G: $avgG, B: $avgB")
 
         // Ottieni il nome del colore
         val colorName = getColorNameFromRgb(avgR, avgG, avgB)
@@ -180,11 +180,11 @@ class CameraService : Service() {
         return closestColorName
     }
 
-    private fun sendColorBroadcast(color: String) {
-        val intent = Intent("com.example.androidcamera.COLOR_UPDATE")
-        intent.putExtra("color", color)
-        sendBroadcast(intent)
-    }
+//    private fun sendColorBroadcast(color: String) {
+//        val intent = Intent("com.example.androidcamera.COLOR_UPDATE")
+//        intent.putExtra("color", color)
+//        sendBroadcast(intent)
+//    }
 
     override fun onDestroy() {
         super.onDestroy()

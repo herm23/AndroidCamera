@@ -21,8 +21,8 @@
 
     <TextureView
         android:id="@+id/txvCameraLive"
-        android:layout_width="1020px"
-        android:layout_height="574px"
+        android:layout_width="176px"
+        android:layout_height="144px"
         tools:layout_editor_absoluteX="94dp"
         tools:layout_editor_absoluteY="45dp" />
 

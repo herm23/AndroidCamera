@@ -4,6 +4,7 @@
 
     <!--Camera permissions-->
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECEIVER_NOT_EXPORTED" />
 
     <!--Features-->
     <uses-feature android:name="android.hardware.camera" />
