@@ -75,16 +75,6 @@ class MainActivity : ComponentActivity() {
         txtAverageColor = findViewById(R.id.txtAverageColor)
         chartBtn = findViewById(R.id.BtnGrafici)
 
-
-//        val intent = Intent(this, CameraService::class.java)
-//        startService(intent)
-    }
-
-    //Manage with non deprecated version
-
-    override fun onResume() {
-        super.onResume()
-
         //Permission managing
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA)
             != PackageManager.PERMISSION_GRANTED)
@@ -102,12 +92,24 @@ class MainActivity : ComponentActivity() {
             val intent = Intent(view.context, ChartActivity::class.java)
             startActivity(intent)
         }
+
+
+//        val intent = Intent(this, CameraService::class.java)
+//        startService(intent)
+    }
+
+    //Manage with non deprecated version
+
+    override fun onResume() {
+        super.onResume()
+
+
     }
 
     override fun onPause() {
         super.onPause()
 
-        camera?.release()
+        //camera?.release()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray)
@@ -211,361 +213,66 @@ class MainActivity : ComponentActivity() {
 
 
 
-    fun onPreviewFrame(data: ByteArray, camera: Camera) {
-        val size = camera.parameters.previewSize
-        val rgb = yuvToRgb(data, size.width, size.height)
-        val averageColor = calculateAverageColor(rgb)
+    private fun onPreviewFrame(data: ByteArray, camera: Camera) {
+        val params = camera.parameters
+        val size = params.previewSize
+        val width = size.width
+        val height = size.height
 
-        txtAverageColor.text = "RGB: ${averageColor.joinToString(", ")}"
-        txtAverageColor.setBackgroundColor(android.graphics.Color.rgb(averageColor[0], averageColor[1], averageColor[2]))
+        // Buffer per immagazzinare i valori RGB
+        val rgb = IntArray(width * height)
+        decodeYUV420SP(rgb, data, width, height)
+
+        // Calcolo del colore medio
+        var redSum = 0
+        var greenSum = 0
+        var blueSum = 0
+        for (color in rgb) {
+            redSum += (color shr 16) and 0xFF
+            greenSum += (color shr 8) and 0xFF
+            blueSum += color and 0xFF
+        }
+        val pixelCount = width * height
+        val avgRed = redSum / pixelCount
+        val avgGreen = greenSum / pixelCount
+        val avgBlue = blueSum / pixelCount
+
+        // Log del colore medio
+        Log.d("CameraPreview", "Average color - R: $avgRed, G: $avgGreen, B: $avgBlue")
+
+        txtAverageColor.text = "RGB: $avgRed, $avgGreen, $avgBlue"
+        txtAverageColor.setBackgroundColor(android.graphics.Color.rgb(avgRed, avgGreen, avgBlue))
 
         camera.addCallbackBuffer(buffer)
     }
 
-    private fun yuvToRgb(yuv: ByteArray, width: Int, height: Int): IntArray {
+    // Metodo per convertire NV21 a RGB
+    private fun decodeYUV420SP(rgb: IntArray, yuv420sp: ByteArray, width: Int, height: Int) {
         val frameSize = width * height
-        val rgb = IntArray(frameSize)
-
-        var y: Int
-        var u: Int
-        var v: Int
-        var r: Int
-        var g: Int
-        var b: Int
-        var index = 0
         var yp = 0
-
-        while (yp < height) {
-            val uvp = frameSize + (yp shr 1) * width
-            var i = 0
-            while (i < width) {
-                y = 0xff and yuv[yp * width + i].toInt()
-                u = 0xff and yuv[uvp + (i and 1)].toInt()
-                v = 0xff and yuv[uvp + (i and 1) + 1].toInt()
-                u -= 128
-                v -= 128
-                r = y + (1.370705 * v).toInt()
-                g = y - (0.698001 * v + 0.337633 * u).toInt()
-                b = y + (1.732446 * u).toInt()
-                r = if (r < 0) 0 else if (r > 255) 255 else r
-                g = if (g < 0) 0 else if (g > 255) 255 else g
-                b = if (b < 0) 0 else if (b > 255) 255 else b
-                rgb[index++] = 0xff000000.toInt() or (r shl 16) or (g shl 8) or b
-                i++
-            }
-            yp++
-        }
-
-        return rgb
-    }
-
-    private fun calculateAverageColor(rgb: IntArray): IntArray {
-        var rSum = 0
-        var gSum = 0
-        var bSum = 0
-
-        for (color in rgb) {
-            rSum += (color shr 16) and 0xff
-            gSum += (color shr 8) and 0xff
-            bSum += color and 0xff
-        }
-
-        val length = rgb.size
-        return intArrayOf(rSum / length, gSum / length, bSum / length)
-    }
-
-
-    //region Codice camera 2
-    /*
-    private fun initCam2(){
-        //Camera Initialization
-        cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        handlerThread = HandlerThread("videoThread")
-        handlerThread.start()
-        handler = Handler((handlerThread).looper)
-        cameraTxv.surfaceTextureListener = object: TextureView.SurfaceTextureListener{
-            override fun onSurfaceTextureAvailable(
-                surface: SurfaceTexture,
-                width: Int,
-                height: Int
-            ) {
-                openCamera()
-            }
-
-            override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
-
-            }
-
-            override fun onSurfaceTextureSizeChanged(
-                surface: SurfaceTexture,
-                width: Int,
-                height: Int
-            ) {
-
-            }
-
-
-            override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
-                return false
-            }
-        }
-    }
-
-    private fun openCamera(){
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.CAMERA
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-
-            return
-        }
-
-        // Dimensioni della fotocamera (es. 1920x1080)
-
-
-        imageReader = ImageReader.newInstance(srfWidth, srfHeight, ImageFormat.YUV_420_888,1)
-        imageReader.setOnImageAvailableListener({ reader ->
-            val image = reader.acquireLatestImage()
-//            image?.let {
-//                processImage(it)
-//                image.close()
-//            }
-            if (image != null) {
-                val rgbArray = yuvToRgb(image)
-                // Calcolo del colore medio
-                val colorMean = calculateMeanColor(rgbArray)
-                // Aggiornamento della TextView con il colore medio
-                runOnUiThread {
-                    txtAverageColor.setTextColor(colorMean)
-                    txtAverageColor.text = "Colore Medio: #" + Integer.toHexString(colorMean)
+        for (j in 0 until height) {
+            var uvp = frameSize + (j shr 1) * width
+            var u = 0
+            var v = 0
+            for (i in 0 until width) {
+                var y = (0xff and yuv420sp[yp].toInt()) - 16
+                if (y < 0) y = 0
+                if ((i and 1) == 0) {
+                    v = (0xff and yuv420sp[uvp++].toInt()) - 128
+                    u = (0xff and yuv420sp[uvp++].toInt()) - 128
                 }
-                image.close()
-            }
-
-        }, handler)
-
-
-
-        cameraManager.openCamera(cameraManager.cameraIdList[0], object: CameraDevice.StateCallback(){
-            override fun onOpened(camera: CameraDevice) {
-                cameraDevice = camera
-                startPreview()
-                /*
-                capReq = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-                //capReq = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
-                var surface = android.view.Surface(cameraTxv.surfaceTexture)
-
-                capReq.addTarget(surface)
-                capReq.addTarget(imageReader.surface)
-
-                cameraDevice.createCaptureSession(listOf(surface), object: CameraCaptureSession.StateCallback(){
-                    override fun onConfigured(session: CameraCaptureSession) {
-                        cameraCaptureSession = session
-                        cameraCaptureSession.setRepeatingRequest(capReq.build(), null, null)
-
-
-                    }
-
-                    override fun onConfigureFailed(session: CameraCaptureSession) {
-
-                    }
-
-                }, handler)
-*/
-
-            }
-
-            override fun onDisconnected(camera: CameraDevice) {
-
-            }
-
-            override fun onError(camera: CameraDevice, error: Int) {
-
-            }
-
-
-        }, handler)
-    }
-
-    private fun startPreview() {
-        try {
-            val surfaceTexture = cameraTxv.surfaceTexture!!
-            surfaceTexture.setDefaultBufferSize(srfWidth, srfHeight)
-            val previewSurface = Surface(surfaceTexture)
-            val imageReaderSurface = imageReader.surface
-
-            capReq = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-            capReq.addTarget(previewSurface)
-            capReq.addTarget(imageReaderSurface)
-
-            cameraDevice.createCaptureSession(listOf(previewSurface, imageReaderSurface), object : CameraCaptureSession.StateCallback() {
-                override fun onConfigured(session: CameraCaptureSession) {
-                    if (cameraDevice == null) return
-                    cameraCaptureSession = session
-                    try {
-                        cameraCaptureSession.setRepeatingRequest(capReq.build(), null, handler)
-                    } catch (e: CameraAccessException) {
-                        e.printStackTrace()
-                    }
-                }
-
-                override fun onConfigureFailed(session: CameraCaptureSession) {
-                    Log.e("Camera", "Configuration failed")
-                }
-            }, handler)
-        } catch (e: CameraAccessException) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun processImage(image: Image) {
-        val yBuffer = image.planes[0].buffer
-        val uBuffer = image.planes[1].buffer
-        val vBuffer = image.planes[2].buffer
-
-
-        val ySize = yBuffer.remaining()
-        val uSize = uBuffer.remaining()
-        val vSize = vBuffer.remaining()
-
-        val yData = ByteArray(ySize)
-        val uData = ByteArray(uSize)
-        val vData = ByteArray(vSize)
-
-        yBuffer.get(yData)
-        uBuffer.get(uData)
-        vBuffer.get(vData)
-
-        Log.i(TAG,"Buffer Y : $yBuffer")
-        Log.i(TAG,"Buffer U : $uBuffer")
-        Log.i(TAG,"Buffer V : $vBuffer")
-
-        val width = image.width
-        val height = image.height
-        var sumR = 0L
-        var sumG = 0L
-        var sumB = 0L
-        var pixelCount = 0
-
-        // Conversione YUV a RGB
-        for (i in 0 until height) {
-            for (j in 0 until width) {
-                val yIndex = i * width + j
-                val uvIndex = (i / 2) * (width / 2) + (j / 2)
-
-                val y = yData[yIndex].toInt() and 0xFF
-                val u = uData[uvIndex].toInt() and 0xFF - 128
-                val v = vData[uvIndex].toInt() and 0xFF - 128
-
-                val r = (y + 1.370705 * v).toInt().coerceIn(0, 255)
-                val g = (y - 0.337633 * u - 0.698001 * v).toInt().coerceIn(0, 255)
-                val b = (y + 1.732446 * u).toInt().coerceIn(0, 255)
-
-                sumR += r
-                sumG += g
-                sumB += b
-                pixelCount++
+                val y1192 = 1192 * y
+                var r = y1192 + 1634 * v
+                var g = y1192 - 833 * v - 400 * u
+                var b = y1192 + 2066 * u
+                if (r < 0) r = 0
+                else if (r > 262143) r = 262143
+                if (g < 0) g = 0
+                else if (g > 262143) g = 262143
+                if (b < 0) b = 0
+                else if (b > 262143) b = 262143
+                rgb[yp++] = 0xff000000.toInt() or ((r shl 6) and 0xff0000) or ((g shr 2) and 0xff00) or ((b shr 10) and 0xff)
             }
         }
-
-        val avgR = (sumR / pixelCount).toInt()
-        val avgG = (sumG / pixelCount).toInt()
-        val avgB = (sumB / pixelCount).toInt()
-
-        Log.d("AverageColor", "Average R: $avgR, G: $avgG, B: $avgB")
-        txtAverageColor.setText("Average R: $avgR, G: $avgG, B: $avgB")
-
-        // Ottieni il nome del colore
-        val colorName = getColorNameFromRgb(avgR, avgG, avgB)
-        Log.d("AverageColorName", "Average color name: $colorName")
-        //txtAverageColor.setText("Average color: " + colorName)
     }
-
-    // Funzione per ottenere il nome del colore (utilizza una libreria esterna o implementa una semplice mappa di colori)
-    private fun getColorNameFromRgb(r: Int, g: Int, b: Int): String {
-        val colorNames = mapOf(
-            "Black" to Color.rgb(0, 0, 0),
-            "White" to Color.rgb(255, 255, 255),
-            "Red" to Color.rgb(255, 0, 0),
-            "Green" to Color.rgb(0, 255, 0),
-            "Blue" to Color.rgb(0, 0, 255),
-            "Gray" to Color.rgb(128, 128, 128)
-            // Aggiungi altri colori secondo necessità
-        )
-
-        var closestColorName = "Unknown"
-        var minDistance = Int.MAX_VALUE
-
-        for ((name, color) in colorNames) {
-            val r2 = Color.red(color)
-            val g2 = Color.green(color)
-            val b2 = Color.blue(color)
-            val distance = (r - r2) * (r - r2) + (g - g2) * (g - g2) + (b - b2) * (b - b2)
-            if (distance < minDistance) {
-                minDistance = distance
-                closestColorName = name
-            }
-        }
-
-        return closestColorName
-    }
-
-    // Funzione per convertire YUV a RGB
-    fun yuvToRgb(image: Image): IntArray {
-        val width = image.width
-        val height = image.height
-        val yuvBytes = ByteArray(width * height * 3 / 2)
-        var i = 0
-
-        val yBuffer = image.planes[0].buffer
-        val uBuffer = image.planes[1].buffer
-        val vBuffer = image.planes[2].buffer
-
-        // Struttura YUV: YYYYYYYY UUUU VVVV
-        yBuffer.get(yuvBytes, 0, width * height)
-        vBuffer.get(yuvBytes, width * height, width * height / 4)
-        uBuffer.get(yuvBytes, width * height + width * height / 4, width * height / 4)
-
-        val rgbInts = IntArray(width * height)
-        for (y in 0 until height) {
-            for (x in 0 until width) {
-                val yIndex = y * width + x
-                val uvIndex = width * height + (y / 2) * width + (x / 2) * 2
-
-                val yValue = yuvBytes[yIndex].toInt() and 0xff
-                val uValue = yuvBytes[uvIndex + 1].toInt() and 0xff
-                val vValue = yuvBytes[uvIndex].toInt() and 0xff
-
-                val r = yValue + (1.370705 * (vValue - 128)).toInt()
-                val g = yValue - (0.698001 * (vValue - 128) + 0.337633 * (uValue - 128)).toInt()
-                val b = yValue + (1.732446 * (uValue - 128)).toInt()
-
-                rgbInts[yIndex] = (0xff shl 24) or
-                        ((r.coerceIn(0, 255)) shl 16) or
-                        ((g.coerceIn(0, 255)) shl 8) or
-                        (b.coerceIn(0, 255))
-            }
-        }
-        return rgbInts
-    }
-
-    // Funzione per calcolare il colore medio
-    fun calculateMeanColor(rgbArray: IntArray): Int {
-        var sumR = 0
-        var sumG = 0
-        var sumB = 0
-        for (color in rgbArray) {
-            sumR += (color shr 16) and 0xff
-            sumG += (color shr 8) and 0xff
-            sumB += color and 0xff
-        }
-        val pixelCount = rgbArray.size
-        val meanR = (sumR / pixelCount).coerceIn(0, 255)
-        val meanG = (sumG / pixelCount).coerceIn(0, 255)
-        val meanB = (sumB / pixelCount).coerceIn(0, 255)
-        return (0xff shl 24) or (meanR shl 16) or (meanG shl 8) or meanB
-    }
-*/
-    //endregion
 }
