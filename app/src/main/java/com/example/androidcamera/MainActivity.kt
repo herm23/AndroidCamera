@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.ImageFormat
 import android.graphics.SurfaceTexture
+import android.graphics.drawable.GradientDrawable
 import android.hardware.Camera
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCaptureSession
@@ -23,6 +24,7 @@ import android.os.HandlerThread
 import android.util.Log
 import android.view.Surface
 import android.view.TextureView
+import android.view.View
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.TextView
@@ -41,6 +43,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var txtAverageColor: TextView
     private lateinit var chartBtn: Button
     private lateinit var cameraTxv: TextureView
+    private lateinit var colorIndicator : View
     private lateinit var cameraCaptureSession: CameraCaptureSession
 
     private var buffer: ByteArray? = null
@@ -74,6 +77,7 @@ class MainActivity : ComponentActivity() {
         txtPermissions = findViewById(R.id.txtPermissions)
         txtAverageColor = findViewById(R.id.txtAverageColor)
         chartBtn = findViewById(R.id.BtnGrafici)
+        colorIndicator = findViewById(R.id.colorIndicator)
 
         //Permission managing
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA)
@@ -240,10 +244,19 @@ class MainActivity : ComponentActivity() {
         // Log del colore medio
         Log.d("CameraPreview", "Average color - R: $avgRed, G: $avgGreen, B: $avgBlue")
 
-        txtAverageColor.text = "RGB: $avgRed, $avgGreen, $avgBlue"
-        txtAverageColor.setBackgroundColor(android.graphics.Color.rgb(avgRed, avgGreen, avgBlue))
+        txtAverageColor.text = "$avgRed, $avgGreen, $avgBlue"
+
+        // Aggiorna il colore della vista con i valori RGB
+        updateColorIndicator(avgRed, avgGreen, avgBlue)
 
         camera.addCallbackBuffer(buffer)
+    }
+
+    // Funzione per aggiornare il colore della vista
+    fun updateColorIndicator(red: Int, green: Int, blue: Int) {
+        val color = Color.rgb(red, green, blue)
+        val background = colorIndicator.background as GradientDrawable
+        background.setColor(color)
     }
 
     // Metodo per convertire NV21 a RGB
