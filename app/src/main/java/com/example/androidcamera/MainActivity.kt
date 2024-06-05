@@ -44,40 +44,37 @@ class MainActivity : ComponentActivity() {
     private lateinit var chartBtn: Button
     private lateinit var cameraTxv: TextureView
     private lateinit var colorIndicator : View
-    private lateinit var cameraCaptureSession: CameraCaptureSession
 
     private var buffer: ByteArray? = null
     private var camera: Camera? = null
-
-    private lateinit var cameraManager: CameraManager
-    private lateinit var cameraDevice: CameraDevice
-    private lateinit var handlerThread : HandlerThread
-    private lateinit var handler: Handler
-    private lateinit var capReq: CaptureRequest.Builder
-    private lateinit var imageReader: ImageReader
-
-
-
-//    private val colorReceiver = object : BroadcastReceiver() {
-//        override fun onReceive(context: Context, intent: Intent) {
-//            if (intent.action == "com.example.androidcamera.COLOR_UPDATE") {
-//                val color = intent.getIntExtra("color", 0)
-//                txtPermissions.text = "Average Color: $color"
-//            }
-//        }
-//    }
-
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+
+
+        Log.i(TAG, "Create")
+
+    }
+
+    override fun onResume() {
+        super.onResume()
+
         //Global vars init
         txtPermissions = findViewById(R.id.txtPermissions)
         txtAverageColor = findViewById(R.id.txtAverageColor)
         chartBtn = findViewById(R.id.BtnGrafici)
         colorIndicator = findViewById(R.id.colorIndicator)
+        cameraTxv = findViewById(R.id.txvCameraLive)
+
+
+        chartBtn.setOnClickListener { view ->
+            val intent = Intent(view.context, ChartActivity::class.java)
+            startActivity(intent)
+        }
+
 
         //Permission managing
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA)
@@ -87,33 +84,18 @@ class MainActivity : ComponentActivity() {
             requestCameraPermission()
         }else{
             initCam()
-            //initCam2()
+
         }
 
-        //Btn listener
-
-        chartBtn.setOnClickListener { view ->
-            val intent = Intent(view.context, ChartActivity::class.java)
-            startActivity(intent)
-        }
-
-
-//        val intent = Intent(this, CameraService::class.java)
-//        startService(intent)
-    }
-
-    //Manage with non deprecated version
-
-    override fun onResume() {
-        super.onResume()
-
-
+        Log.i(TAG, "Resume")
     }
 
     override fun onPause() {
         super.onPause()
 
-        //camera?.release()
+        releaseCamera()
+
+        Log.i(TAG, "Pause")
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray)
@@ -156,46 +138,28 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun initCam(){
-
-        cameraTxv = findViewById(R.id.txvCameraLive)
-
         cameraTxv.surfaceTextureListener = object: TextureView.SurfaceTextureListener{
             override fun onSurfaceTextureAvailable(
                 surface: SurfaceTexture,
                 width: Int,
                 height: Int
             ) {
-                camera = Camera.open()
-                camera?.setDisplayOrientation(90)
-                val supportedPreviewSize = camera?.parameters?.getSupportedPreviewSizes()
-                val supportedPreviewFpsRange = camera?.parameters?.getSupportedPreviewFpsRange()
 
+                Log.w(TAG, "Surface disponibile")
 
-                val minWidth = supportedPreviewSize!!.last().width
-                val minHeight = supportedPreviewSize!!.last().height
-
-                //val minParams : Camera.Parameters =
-                camera?.parameters?.setPreviewSize(minWidth, minHeight)
-                camera?.parameters?.setPreviewFpsRange(supportedPreviewFpsRange!!.last().min(),supportedPreviewFpsRange!!.last().max())
-
-                camera?.setPreviewTexture(cameraTxv.surfaceTexture)
-                val params = camera?.parameters
-                val size = params?.previewSize
-                val bufferSize = size?.width!! * size.height * ImageFormat.getBitsPerPixel(params.previewFormat) / 8
-                 buffer = ByteArray(bufferSize)
-
-                camera?.addCallbackBuffer(buffer)
-                camera?.setPreviewCallbackWithBuffer(Camera.PreviewCallback { data, camera ->
-                    onPreviewFrame(data, camera)
-                })
-                camera?.startPreview()
+                if(camera == null)
+                    openCameraANDPreview()
 
 
 
             }
 
             override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+                Log.w(TAG, "Surface aggiornato")
 
+                //inizializza qui la camera
+                if(camera == null)
+                    openCameraANDPreview()
             }
 
             override fun onSurfaceTextureSizeChanged(
@@ -203,19 +167,56 @@ class MainActivity : ComponentActivity() {
                 width: Int,
                 height: Int
             ) {
-
+                Log.w(TAG, "Surface cambio dimensioni")
             }
 
 
             override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
-                return false
+                Log.w(TAG, "Surface distrutto")
+                releaseCamera()
+                return true
             }
         }
 
 
     }
 
+    private fun openCameraANDPreview(){
+        camera = Camera.open()
+        camera?.setDisplayOrientation(90)
+        val supportedPreviewSize = camera?.parameters?.getSupportedPreviewSizes()
+        val supportedPreviewFpsRange = camera?.parameters?.getSupportedPreviewFpsRange()
 
+
+        val minWidth = supportedPreviewSize!!.last().width
+        val minHeight = supportedPreviewSize!!.last().height
+
+        //val minParams : Camera.Parameters =
+        camera?.parameters?.setPreviewSize(minWidth, minHeight)
+        camera?.parameters?.setPreviewFpsRange(supportedPreviewFpsRange!!.last().min(),supportedPreviewFpsRange!!.last().max())
+
+        camera?.setPreviewTexture(cameraTxv.surfaceTexture)
+        val params = camera?.parameters
+        val size = params?.previewSize
+        val bufferSize = size?.width!! * size.height * ImageFormat.getBitsPerPixel(params.previewFormat) / 8
+        buffer = ByteArray(bufferSize)
+
+        camera?.addCallbackBuffer(buffer)
+        camera?.setPreviewCallbackWithBuffer(Camera.PreviewCallback { data, camera ->
+
+
+            onPreviewFrame(data, camera)
+        })
+        camera?.startPreview()
+    }
+
+
+    private fun releaseCamera() {
+        camera?.stopPreview()
+        camera?.setPreviewCallbackWithBuffer(null)
+        camera?.release()
+        camera = null
+    }
 
     private fun onPreviewFrame(data: ByteArray, camera: Camera) {
         val params = camera.parameters
@@ -242,7 +243,7 @@ class MainActivity : ComponentActivity() {
         val avgBlue = blueSum / pixelCount
 
         // Log del colore medio
-        Log.d("CameraPreview", "Average color - R: $avgRed, G: $avgGreen, B: $avgBlue")
+        // Log.d("CameraPreview", "Average color - R: $avgRed, G: $avgGreen, B: $avgBlue")
 
         txtAverageColor.text = "$avgRed, $avgGreen, $avgBlue"
 
