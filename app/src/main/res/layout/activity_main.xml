@@ -61,14 +61,16 @@
             android:layout_height="0dp"
             android:layout_weight="1" />
 
-        <TextureView
-            android:id="@+id/txvCameraLive"
+        <SurfaceView
+            android:id="@+id/sfvCameraLive"
             android:layout_width="176px"
             android:layout_height="144px"
             tools:layout_editor_absoluteX="94dp"
             tools:layout_editor_absoluteY="45dp"
             android:layout_centerHorizontal="true"
             android:layout_centerVertical="true"/>
+
+
     </LinearLayout>
 
     <LinearLayout

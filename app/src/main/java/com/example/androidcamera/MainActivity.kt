@@ -23,6 +23,8 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
 import android.view.Surface
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import android.view.TextureView
 import android.view.View
 import android.view.WindowManager
@@ -42,7 +44,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var txtPermissions: TextView
     private lateinit var txtAverageColor: TextView
     private lateinit var chartBtn: Button
-    private lateinit var cameraTxv: TextureView
+    private lateinit var surfaceView: SurfaceView
+    private lateinit var surfaceHolder: SurfaceHolder
     private lateinit var colorIndicator : View
 
     private var buffer: ByteArray? = null
@@ -53,28 +56,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-
-
-        Log.i(TAG, "Create")
-
-    }
-
-    override fun onResume() {
-        super.onResume()
-
         //Global vars init
         txtPermissions = findViewById(R.id.txtPermissions)
         txtAverageColor = findViewById(R.id.txtAverageColor)
         chartBtn = findViewById(R.id.BtnGrafici)
         colorIndicator = findViewById(R.id.colorIndicator)
-        cameraTxv = findViewById(R.id.txvCameraLive)
+        surfaceView = findViewById(R.id.sfvCameraLive)
 
 
         chartBtn.setOnClickListener { view ->
             val intent = Intent(view.context, ChartActivity::class.java)
             startActivity(intent)
         }
-
 
         //Permission managing
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA)
@@ -83,9 +76,17 @@ class MainActivity : ComponentActivity() {
             txtPermissions.setText(R.string.permissios_denied)
             requestCameraPermission()
         }else{
-            initCam()
-
+            initHolder()
         }
+
+
+
+        Log.i(TAG, "Create")
+
+    }
+
+    override fun onResume() {
+        super.onResume()
 
         Log.i(TAG, "Resume")
     }
@@ -98,30 +99,29 @@ class MainActivity : ComponentActivity() {
         Log.i(TAG, "Pause")
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray)
-    {
-        if (requestCode == REQUEST_CAMERA_PERMISSION)
-        {
-            if (grantResults.size != 1 ||
-                grantResults[0] != PackageManager.PERMISSION_GRANTED)
-            {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        if (requestCode == REQUEST_CAMERA_PERMISSION) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                txtPermissions.setText(R.string.permissios_granted)
+                Log.i(TAG, "CAMERA permission has been GRANTED.")
+
+                // Ensure the Surface is valid before starting the preview
+                initHolder()
+            } else {
                 txtPermissions.setText(R.string.permissios_denied)
                 Log.i(TAG, "CAMERA permission has been DENIED.")
                 // Handle lack of permission here
             }
-            else
-            {
-                txtPermissions.setText(R.string.permissios_granted)
-                Log.i(TAG, "CAMERA permission has been GRANTED.")
-
-                //initCam2();
-                initCam();
-            }
-        }
-        else
-        {
-
+        } else {
             super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        }
+    }
+
+    private fun initHolder(){
+        surfaceHolder = surfaceView.holder
+        surfaceHolder.addCallback(surfaceCallback)
+        if (surfaceHolder.surface.isValid) {
+            openCameraANDPreview(surfaceHolder)
         }
     }
 
@@ -137,51 +137,21 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private fun initCam(){
-        cameraTxv.surfaceTextureListener = object: TextureView.SurfaceTextureListener{
-            override fun onSurfaceTextureAvailable(
-                surface: SurfaceTexture,
-                width: Int,
-                height: Int
-            ) {
-
-                Log.w(TAG, "Surface disponibile")
-
-                if(camera == null)
-                    openCameraANDPreview()
-
-
-
-            }
-
-            override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
-                Log.w(TAG, "Surface aggiornato")
-
-                //inizializza qui la camera
-                if(camera == null)
-                    openCameraANDPreview()
-            }
-
-            override fun onSurfaceTextureSizeChanged(
-                surface: SurfaceTexture,
-                width: Int,
-                height: Int
-            ) {
-                Log.w(TAG, "Surface cambio dimensioni")
-            }
-
-
-            override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
-                Log.w(TAG, "Surface distrutto")
-                releaseCamera()
-                return true
-            }
+    private val surfaceCallback = object : SurfaceHolder.Callback {
+        override fun surfaceCreated(holder: SurfaceHolder) {
+            openCameraANDPreview(holder)
         }
 
+        override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+            // Gestisci i cambiamenti della superficie se necessario
+        }
 
+        override fun surfaceDestroyed(holder: SurfaceHolder) {
+            releaseCamera()
+        }
     }
 
-    private fun openCameraANDPreview(){
+    private fun openCameraANDPreview(holder: SurfaceHolder){
         camera = Camera.open()
         camera?.setDisplayOrientation(90)
         val supportedPreviewSize = camera?.parameters?.getSupportedPreviewSizes()
@@ -191,11 +161,13 @@ class MainActivity : ComponentActivity() {
         val minWidth = supportedPreviewSize!!.last().width
         val minHeight = supportedPreviewSize!!.last().height
 
-        //val minParams : Camera.Parameters =
-        camera?.parameters?.setPreviewSize(minWidth, minHeight)
-        camera?.parameters?.setPreviewFpsRange(supportedPreviewFpsRange!!.last().min(),supportedPreviewFpsRange!!.last().max())
+        camera?.parameters?.apply {
+            setPreviewSize(minWidth, minHeight)
+            setPreviewFpsRange(supportedPreviewFpsRange!!.last()[0], supportedPreviewFpsRange!!.last()[1])
+        }
 
-        camera?.setPreviewTexture(cameraTxv.surfaceTexture)
+        camera?.setPreviewDisplay(holder)
+
         val params = camera?.parameters
         val size = params?.previewSize
         val bufferSize = size?.width!! * size.height * ImageFormat.getBitsPerPixel(params.previewFormat) / 8
@@ -203,8 +175,6 @@ class MainActivity : ComponentActivity() {
 
         camera?.addCallbackBuffer(buffer)
         camera?.setPreviewCallbackWithBuffer(Camera.PreviewCallback { data, camera ->
-
-
             onPreviewFrame(data, camera)
         })
         camera?.startPreview()
@@ -212,9 +182,11 @@ class MainActivity : ComponentActivity() {
 
 
     private fun releaseCamera() {
-        camera?.stopPreview()
-        camera?.setPreviewCallbackWithBuffer(null)
-        camera?.release()
+        camera?.apply {
+            stopPreview()
+            setPreviewCallbackWithBuffer(null)
+            release()
+        }
         camera = null
     }
 
