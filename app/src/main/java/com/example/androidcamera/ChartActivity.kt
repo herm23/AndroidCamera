@@ -22,7 +22,7 @@ class ChartActivity : ComponentActivity() {
     companion object{
 
         const val TAG : String = "Chart Activity"
-        const val SpanTimeMillis : Int = 10000  //5 minuti sono 300000 millisecondi
+        const val SpanTimeMillis : Int = 300000  //5 minuti sono 300000 millisecondi
     }
 
     private lateinit var lineChart: LineChart
@@ -54,10 +54,6 @@ class ChartActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_chart)
-    }
-
-    override fun onResume() {
-        super.onResume()
 
         //Vars
         surfaceView = findViewById(R.id.sfvCameraLive)
@@ -65,7 +61,10 @@ class ChartActivity : ComponentActivity() {
         //Db
         val db = DatabaseProvider.getDatabase(applicationContext)
         userDao = db.userDao()
+    }
 
+    override fun onResume() {
+        super.onResume()
         lifecycleScope.launch {
             // Recupero tutti i colori salvati
             colorsBuffer = ArrayList(userDao.getAllColors())
@@ -84,6 +83,8 @@ class ChartActivity : ComponentActivity() {
 
 
             initChart()
+
+
             initHolder()
         }
 
@@ -145,8 +146,8 @@ class ChartActivity : ComponentActivity() {
 
             counter++
 
-//            if(colorsBuffer.size == counter)
-//                startActvityTime += modulateVal
+            if(colorsBuffer.size == counter)
+                startXOffset = modulateVal
         }
 
         redDataSet = LineDataSet(redEntries, "Red DataSet")
@@ -228,7 +229,7 @@ class ChartActivity : ComponentActivity() {
 //            Log.i(TAG, "unixTime: $unixTime")
 //            Log.i(TAG, "startActvityTime: $startActvityTime")
 
-            unixTime = unixTime - startActvityTime
+            unixTime = unixTime - startActvityTime + startXOffset
 
             updateChart(unixTime, avgRed.toFloat(), avgGreen.toFloat(), avgBlue.toFloat())
 
