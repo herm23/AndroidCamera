@@ -20,7 +20,7 @@ class ChartActivity : ComponentActivity() {
     companion object{
 
         const val TAG : String = "Chart Activity"
-
+        const val SpanTimeMillis : Int = 300000  //5 minuti sono 300000 millisecondi
     }
 
     private lateinit var lineChart: LineChart
@@ -33,6 +33,10 @@ class ChartActivity : ComponentActivity() {
     private lateinit var redDataSet: LineDataSet
     private lateinit var greenDataSet: LineDataSet
     private lateinit var blueDataset: LineDataSet
+
+    private lateinit var redEntries: ArrayList<Entry>
+    private lateinit var greenEntries: ArrayList<Entry>
+    private lateinit var blueEntries: ArrayList<Entry>
 
     private  var buffer: ByteArray? = null
     private var camera: Camera? = null
@@ -48,6 +52,22 @@ class ChartActivity : ComponentActivity() {
         surfaceView = findViewById(R.id.sfvCameraLive)
         startActvityTime = System.currentTimeMillis()
 
+        //Db
+//        val db = DatabaseProvider.getDatabase(applicationContext)
+//        val userDao = db.userDao()
+//
+//        lifecycleScope.launch {
+//            // Inserisci un nuovo utente
+//            val newColor = MyColor(createdDateInMillis = System.currentTimeMillis(), avgRed = 0f, avgBlue = 0f, avgGreen = 0f)
+//            userDao.insert(newColor)
+//
+//            // Recupera tutti gli utenti
+//            val colors = userDao.getAllColors()
+//            // Usa i dati recuperati
+//
+//        }
+
+        //Grafici e camera
         initChart()
         initHolder()
     }
@@ -86,22 +106,21 @@ class ChartActivity : ComponentActivity() {
         // Inizializza il grafico
         lineChart = findViewById(R.id.lineChartR)
 
-        val redEntries = ArrayList<Entry>()
+        redEntries = ArrayList<Entry>()
         redDataSet = LineDataSet(redEntries, "Red DataSet")
         redDataSet.color = Color.RED
         redDataSet.setCircleColor(Color.RED)
         redDataSet.setDrawCircleHole(false) // Imposta il pallino pieno senza il pallino bianco
         redDataSet.setDrawCircles(false) // Disegna i pallini
 
-        val greenEntries = ArrayList<Entry>()
+        greenEntries = ArrayList<Entry>()
         greenDataSet = LineDataSet(greenEntries, "Green Dataset")
         greenDataSet.color = Color.GREEN
         greenDataSet.setCircleColor(Color.GREEN)
         greenDataSet.setDrawCircleHole(false) // Imposta il pallino pieno senza il pallino bianco
         greenDataSet.setDrawCircles(false) // Disegna i pallini
 
-        val blueEntries = ArrayList<Entry>()
-
+        blueEntries = ArrayList<Entry>()
         blueDataset = LineDataSet(blueEntries, "Blue Dataset")
         blueDataset.color = Color.BLUE
         blueDataset.setCircleColor(Color.BLUE)
@@ -172,12 +191,39 @@ class ChartActivity : ComponentActivity() {
     }
 
     // Funzione per aggiornare il grafico con nuovi dati
-    fun updateChart(xCoord : Float, avgRed: Float, avgGreen: Float, avgBlue: Float) {
+    // Funzione per aggiornare il grafico con nuovi dati
+    fun updateChart(xCoord: Float, avgRed: Float, avgGreen: Float, avgBlue: Float) {
         val data = lineChart.data
 
+        val currentTime = System.currentTimeMillis() - startActvityTime
+        val minTime = currentTime - SpanTimeMillis
+
+        // Rimuove le vecchie entry in base allo span di tempo
+        val redEntriesToRemove = redEntries.filter { it.x < minTime }
+        redEntries.removeAll(redEntriesToRemove)
+
+        val greenEntriesToRemove = greenEntries.filter { it.x < minTime }
+        greenEntries.removeAll(greenEntriesToRemove)
+
+        val blueEntriesToRemove = blueEntries.filter { it.x < minTime }
+        blueEntries.removeAll(blueEntriesToRemove)
+
+        // Aggiungi le nuove entry
+        redEntries.add(Entry(xCoord, avgRed))
         redDataSet.addEntry(Entry(xCoord, avgRed))
+
+        greenEntries.add(Entry(xCoord, avgGreen))
         greenDataSet.addEntry(Entry(xCoord, avgGreen))
+
+        blueEntries.add(Entry(xCoord, avgBlue))
         blueDataset.addEntry(Entry(xCoord, avgBlue))
+
+        // Imposta i limiti dell'asse x
+        val xAxis = lineChart.xAxis
+        xAxis.axisMinimum = minTime.toFloat()
+        xAxis.axisMaximum = currentTime.toFloat()
+
+        // Aggiorna il grafico
         data.notifyDataChanged()
         lineChart.notifyDataSetChanged()
         lineChart.invalidate()

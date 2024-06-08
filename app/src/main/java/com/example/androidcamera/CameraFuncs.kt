@@ -1,6 +1,11 @@
 package com.example.androidcamera
 
 import android.hardware.Camera
+import androidx.room.Dao
+import androidx.room.Entity
+import androidx.room.Insert
+import androidx.room.PrimaryKey
+import androidx.room.Query
 
 class  CameraFuncs {
 
