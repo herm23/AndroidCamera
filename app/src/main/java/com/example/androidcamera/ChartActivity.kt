@@ -50,6 +50,8 @@ class ChartActivity : ComponentActivity() {
     private var startActvityTime : Long = 0
     private var startXOffset : Long = 0
 
+    private var SkipCounter : Int = 0
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -218,21 +220,29 @@ class ChartActivity : ComponentActivity() {
         var avgBlue : Int
         camera?.addCallbackBuffer(buffer)
         camera?.setPreviewCallbackWithBuffer(Camera.PreviewCallback { data, camera ->
-            meanColors =  CameraFuncs.onPreviewFrame(data, camera)
 
-            avgRed = meanColors[0]
-            avgGreen = meanColors[1]
-            avgBlue = meanColors[2]
+            if(SkipCounter == 10)
+                SkipCounter = 0
 
-            var unixTime = System.currentTimeMillis()
 
-//            Log.i(TAG, "unixTime: $unixTime")
-//            Log.i(TAG, "startActvityTime: $startActvityTime")
+            if(SkipCounter == 0){
+                meanColors =  CameraFuncs.onPreviewFrame(data, camera)
 
-            unixTime = unixTime - startActvityTime + startXOffset
+                avgRed = meanColors[0]
+                avgGreen = meanColors[1]
+                avgBlue = meanColors[2]
 
-            updateChart(unixTime, avgRed.toFloat(), avgGreen.toFloat(), avgBlue.toFloat())
+                var unixTime = System.currentTimeMillis()
 
+    //            Log.i(TAG, "unixTime: $unixTime")
+    //            Log.i(TAG, "startActvityTime: $startActvityTime")
+
+                unixTime = unixTime - startActvityTime + startXOffset
+
+                updateChart(unixTime, avgRed.toFloat(), avgGreen.toFloat(), avgBlue.toFloat())
+            }
+
+            SkipCounter++;
             camera.addCallbackBuffer(buffer)
         })
         camera?.startPreview()
