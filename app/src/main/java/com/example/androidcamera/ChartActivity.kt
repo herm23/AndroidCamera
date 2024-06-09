@@ -16,7 +16,9 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import kotlinx.coroutines.launch
-
+//Questa classe si occupa:
+//1) Mostra i grafici in real time (ultimi 5 minuti) dei colori medi
+//2) Legge/Scrive e cancella tutti i dati necessari per il punto (1)
 class ChartActivity : ComponentActivity() {
 
     companion object{
@@ -50,8 +52,6 @@ class ChartActivity : ComponentActivity() {
     private var startActvityTime : Long = 0
     private var startXOffset : Long = 0
 
-    private var SkipCounter : Int = 0
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,6 +59,7 @@ class ChartActivity : ComponentActivity() {
 
         //Vars
         surfaceView = findViewById(R.id.sfvCameraLive)
+        CameraFuncs.skipCounter = 0
 
         //Db
         //Db
@@ -142,11 +143,12 @@ class ChartActivity : ComponentActivity() {
         var counter: Int = 0
         var tmp : Long = 0
         var modulateVal : Long = 0
+        var firstOldModulateVal : Long = 0
 
        //Inizializzo i valori dei colori
         for (color in colorsBuffer) {
-            tmp = color.relativeToSpanInMillis / SpanTimeMillis
-            modulateVal = color.relativeToSpanInMillis - (SpanTimeMillis * tmp)
+            tmp = ((color.createdActivityInMillis + color.relativeToSpanInMillis) - startActvityTime) / SpanTimeMillis
+            modulateVal = ((color.createdActivityInMillis + color.relativeToSpanInMillis) - startActvityTime) - (SpanTimeMillis * tmp)
 
             redEntries.add(Entry(modulateVal.toFloat(), color.avgRed.toFloat()))
             greenEntries.add(Entry(modulateVal.toFloat(), color.avgGreen.toFloat()))
@@ -154,8 +156,16 @@ class ChartActivity : ComponentActivity() {
 
             counter++
 
-            if(colorsBuffer.size == counter)
+            Log.i(TAG, "Old Value ===> $modulateVal")
+
+            if(counter == 0){
+                firstOldModulateVal = modulateVal
+            }
+
+            if(colorsBuffer.size == counter){
                 startXOffset = modulateVal
+            }
+
         }
 
         redDataSet = LineDataSet(redEntries, "Red DataSet")
@@ -190,7 +200,7 @@ class ChartActivity : ComponentActivity() {
         val xAxis = lineChart.xAxis
         xAxis.granularity = SpanTimeMillis.toFloat() / 5
         xAxis.position = XAxis.XAxisPosition.BOTTOM
-        xAxis.axisMinimum = 0f
+        xAxis.axisMinimum = firstOldModulateVal.toFloat()
         // Nascondi la descrizione del grafico
         lineChart.description.isEnabled = false
 
@@ -228,11 +238,11 @@ class ChartActivity : ComponentActivity() {
         var unixTime : Long = 0
         camera?.setPreviewCallbackWithBuffer(Camera.PreviewCallback { data, camera ->
 
-            if(SkipCounter == 10)
-                SkipCounter = 0
+            if(CameraFuncs.skipCounter == 10)
+                CameraFuncs.skipCounter = 0
 
 
-            if(SkipCounter == 0){
+            if(CameraFuncs.skipCounter == 0){
                 meanColors =  CameraFuncs.onPreviewFrame(data, camera)
 
                 avgRed = meanColors[0]
@@ -246,10 +256,12 @@ class ChartActivity : ComponentActivity() {
 
                 unixTime = unixTime - startActvityTime + startXOffset
 
+                Log.i(TAG, "New Value ===> $unixTime")
+
                 updateChart(unixTime, avgRed, avgGreen, avgBlue)
             }
 
-            SkipCounter++;
+            CameraFuncs.skipCounter++;
             camera.addCallbackBuffer(buffer)
         })
         camera?.startPreview()
@@ -286,10 +298,8 @@ class ChartActivity : ComponentActivity() {
 
         // Imposta i limiti dell'asse x
         val xAxis = lineChart.xAxis
-        if (minTime < 0)
-            xAxis.axisMinimum = 0f
-        else
-            xAxis.axisMinimum = minTime.toFloat()
+
+        xAxis.axisMinimum = minTime.toFloat()
 
         xAxis.axisMaximum = currentTime.toFloat()
 

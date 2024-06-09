@@ -10,6 +10,10 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
+//AppDatabase si occupa di:
+//1) Implementare un semplice database locale che gestisca i colori
+//2) Rende disponibile il db a tuttal'applicazione
+
 @Entity(tableName = "colors")
 data class MyColor(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

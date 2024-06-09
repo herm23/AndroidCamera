@@ -1,15 +1,14 @@
 package com.example.androidcamera
 
 import android.hardware.Camera
-import androidx.room.Dao
-import androidx.room.Entity
-import androidx.room.Insert
-import androidx.room.PrimaryKey
-import androidx.room.Query
 
+//Camera Funcs si occupa di>
+//1) Contiene le funzioni comuni tra "MainActivity" e "ChartActivity"
 class  CameraFuncs {
 
     companion object{
+
+        var skipCounter : Int = 0
 
         fun onPreviewFrame(data: ByteArray, camera: Camera) : List<Int> {
             val params = camera.parameters

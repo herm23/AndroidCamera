@@ -18,12 +18,14 @@ import androidx.core.app.ActivityCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 
+//Main activity si occupa di:
+//1) Mostrare l'anterprima della fotocamera
+//2) Calcolare il colore medio in live e mostrarlo sul pallino in alto a destra
+//3) Raccogliere ogni 10 frame i colori medi che poi verranno graficati in "ChartActivity"
 class MainActivity : ComponentActivity() {
     companion object{
         const val REQUEST_CAMERA_PERMISSION : Int = 1
         const val TAG : String = "Main Activity"
-        const val srfWidth = 1020
-        const val srfHeight = 574
     }
 
     private lateinit var txtPermissions: TextView
@@ -34,7 +36,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var colorIndicator : View
     private lateinit var userDao: MyColorDao
     private var startActvityTime : Long = 0
-    private var SkipCounter : Int = 0
     private var colorsBuffer: ArrayList<MyColor> = ArrayList()
 
 
@@ -45,7 +46,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
+        CameraFuncs.skipCounter = 0
         //Global vars init
         txtPermissions = findViewById(R.id.txtPermissions)
         txtAverageColor = findViewById(R.id.txtAverageColor)
@@ -58,9 +59,7 @@ class MainActivity : ComponentActivity() {
         userDao = db.myColorDao()
 
 
-        chartBtn.setOnClickListener { view ->
-            writeData(true)
-        }
+
 
         //Permission managing
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA)
@@ -113,6 +112,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun initHolder(){
+        //Definisco il listener per andare nei grafici solo se ho i permessi
+        //Prima rilascio la camera e poi scrivo i dati
+        chartBtn.setOnClickListener { view ->
+            releaseCamera()
+
+            writeData(true)
+        }
+
         surfaceHolder = surfaceView.holder
         surfaceHolder.addCallback(surfaceCallback)
         if (surfaceHolder.surface.isValid) {
@@ -184,18 +191,18 @@ class MainActivity : ComponentActivity() {
             txtAverageColor.text = "$avgRed, $avgGreen, $avgBlue"
 
 
-            if(SkipCounter == 10)
-                SkipCounter = 0
+            if(CameraFuncs.skipCounter == 10)
+                CameraFuncs.skipCounter = 0
 
 
-            if(SkipCounter == 0){
+            if(CameraFuncs.skipCounter == 0){
                 unixTime = System.currentTimeMillis()
 
                 unixTime = unixTime - startActvityTime
 
                 colorsBuffer.add(MyColor(createdActivityInMillis = startActvityTime, relativeToSpanInMillis =  unixTime, avgRed = avgRed, avgGreen = avgGreen, avgBlue = avgBlue))
             }
-            SkipCounter++;
+            CameraFuncs.skipCounter++;
 
             // Aggiorna il colore della vista con i valori RGB
             updateColorIndicator(avgRed, avgGreen, avgBlue)
