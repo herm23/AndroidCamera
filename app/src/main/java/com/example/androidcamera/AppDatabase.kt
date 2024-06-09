@@ -15,13 +15,13 @@ data class MyColor(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val createdActivityInMillis: Long, //Tempo fisso in milli secondi, indica quando è stata creata l'attività
     val relativeToSpanInMillis: Long, //tempo relativo in milli secondi rispetto a quello precedente, questo è stato creato per mostrare i dati nel grafico
-    val avgRed: Float,
-    val avgGreen: Float,
-    val avgBlue: Float
+    val avgRed: Int,
+    val avgGreen: Int,
+    val avgBlue: Int
 )
 
 @Dao
-interface UserDao {
+interface MyColorDao {
     @Insert
     suspend fun insert(color: MyColor)
 
@@ -35,29 +35,24 @@ interface UserDao {
     suspend fun deleteAll()
 }
 
-object DatabaseProvider {
-    @Volatile
-    private var INSTANCE: AppDatabase? = null
-
-    fun getDatabase(context: Context): AppDatabase {
-        val tempInstance = INSTANCE
-        if (tempInstance != null) {
-            return tempInstance
-        }
-        synchronized(this) {
-            val instance = Room.databaseBuilder(
-                context.applicationContext,
-                AppDatabase::class.java,
-                "app_database"
-            ).build()
-            INSTANCE = instance
-            return instance
-        }
-    }
-}
-
-
 @Database(entities = [MyColor::class], version = 1)
 abstract class AppDatabase : RoomDatabase() {
-    abstract fun userDao(): UserDao
+    abstract fun myColorDao(): MyColorDao
+
+    companion object {
+        @Volatile
+        private var INSTANCE: AppDatabase? = null
+
+        fun getDatabase(context: Context): AppDatabase {
+            return INSTANCE ?: synchronized(this) {
+                val instance = Room.databaseBuilder(
+                    context.applicationContext,
+                    AppDatabase::class.java,
+                    "app_database"
+                ).build()
+                INSTANCE = instance
+                instance
+            }
+        }
+    }
 }

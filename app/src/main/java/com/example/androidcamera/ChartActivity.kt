@@ -40,7 +40,7 @@ class ChartActivity : ComponentActivity() {
     private lateinit var greenEntries: ArrayList<Entry>
     private lateinit var blueEntries: ArrayList<Entry>
     private lateinit var colorsBuffer: ArrayList<MyColor>
-    private lateinit var userDao: UserDao
+    private lateinit var userDao: MyColorDao
 
 
 
@@ -59,17 +59,23 @@ class ChartActivity : ComponentActivity() {
 
         //Vars
         surfaceView = findViewById(R.id.sfvCameraLive)
-        startActvityTime = System.currentTimeMillis()
+
         //Db
-        val db = DatabaseProvider.getDatabase(applicationContext)
-        userDao = db.userDao()
+        //Db
+        val db = AppDatabase.getDatabase(this)
+        userDao = db.myColorDao()
     }
 
     override fun onResume() {
         super.onResume()
+        startActvityTime = System.currentTimeMillis()
+
         lifecycleScope.launch {
             // Recupero tutti i colori salvati
             colorsBuffer = ArrayList(userDao.getAllColors())
+
+            Log.i(TAG, "Sono stati estratti ${colorsBuffer.size} colori :)")
+
             //Controllo che i colori rientrino negli ultimi 5 minuti
             val colorsToRemove = colorsBuffer.filter { (it.createdActivityInMillis + it.relativeToSpanInMillis) < (startActvityTime - SpanTimeMillis)  }
             colorsBuffer.removeAll(colorsToRemove.toSet())
@@ -142,9 +148,9 @@ class ChartActivity : ComponentActivity() {
             tmp = color.relativeToSpanInMillis / SpanTimeMillis
             modulateVal = color.relativeToSpanInMillis - (SpanTimeMillis * tmp)
 
-            redEntries.add(Entry(modulateVal.toFloat(), color.avgRed))
-            greenEntries.add(Entry(modulateVal.toFloat(), color.avgGreen))
-            blueEntries.add(Entry(modulateVal.toFloat(), color.avgBlue))
+            redEntries.add(Entry(modulateVal.toFloat(), color.avgRed.toFloat()))
+            greenEntries.add(Entry(modulateVal.toFloat(), color.avgGreen.toFloat()))
+            blueEntries.add(Entry(modulateVal.toFloat(), color.avgBlue.toFloat()))
 
             counter++
 
@@ -219,6 +225,7 @@ class ChartActivity : ComponentActivity() {
         var avgGreen : Int
         var avgBlue : Int
         camera?.addCallbackBuffer(buffer)
+        var unixTime : Long = 0
         camera?.setPreviewCallbackWithBuffer(Camera.PreviewCallback { data, camera ->
 
             if(SkipCounter == 10)
@@ -232,14 +239,14 @@ class ChartActivity : ComponentActivity() {
                 avgGreen = meanColors[1]
                 avgBlue = meanColors[2]
 
-                var unixTime = System.currentTimeMillis()
+                unixTime = System.currentTimeMillis()
 
     //            Log.i(TAG, "unixTime: $unixTime")
     //            Log.i(TAG, "startActvityTime: $startActvityTime")
 
                 unixTime = unixTime - startActvityTime + startXOffset
 
-                updateChart(unixTime, avgRed.toFloat(), avgGreen.toFloat(), avgBlue.toFloat())
+                updateChart(unixTime, avgRed, avgGreen, avgBlue)
             }
 
             SkipCounter++;
@@ -249,7 +256,7 @@ class ChartActivity : ComponentActivity() {
     }
 
     // Funzione per aggiornare il grafico con nuovi dati
-    fun updateChart(xCoord: Long, avgRed: Float, avgGreen: Float, avgBlue: Float) {
+    fun updateChart(xCoord: Long, avgRed: Int, avgGreen: Int, avgBlue: Int) {
         val data = lineChart.data
 
         val currentTime = System.currentTimeMillis() - startActvityTime
@@ -266,14 +273,14 @@ class ChartActivity : ComponentActivity() {
         blueEntries.removeAll(blueEntriesToRemove.toSet())
 
         // Aggiungi le nuove entry
-        redEntries.add(Entry(xCoord.toFloat(), avgRed))
-        redDataSet.addEntry(Entry(xCoord.toFloat(), avgRed))
+        redEntries.add(Entry(xCoord.toFloat(), avgRed.toFloat()))
+        redDataSet.addEntry(Entry(xCoord.toFloat(), avgRed.toFloat()))
 
-        greenEntries.add(Entry(xCoord.toFloat(), avgGreen))
-        greenDataSet.addEntry(Entry(xCoord.toFloat(), avgGreen))
+        greenEntries.add(Entry(xCoord.toFloat(), avgGreen.toFloat()))
+        greenDataSet.addEntry(Entry(xCoord.toFloat(), avgGreen.toFloat()))
 
-        blueEntries.add(Entry(xCoord.toFloat(), avgBlue))
-        blueDataset.addEntry(Entry(xCoord.toFloat(), avgBlue))
+        blueEntries.add(Entry(xCoord.toFloat(), avgBlue.toFloat()))
+        blueDataset.addEntry(Entry(xCoord.toFloat(), avgBlue.toFloat()))
 
         colorsBuffer.add(MyColor(createdActivityInMillis = startActvityTime, relativeToSpanInMillis =  xCoord, avgRed = avgRed, avgGreen = avgGreen, avgBlue = avgBlue))
 

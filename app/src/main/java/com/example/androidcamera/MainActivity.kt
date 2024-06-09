@@ -15,6 +15,8 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.core.app.ActivityCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     companion object{
@@ -30,6 +32,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var surfaceView: SurfaceView
     private lateinit var surfaceHolder: SurfaceHolder
     private lateinit var colorIndicator : View
+    private lateinit var userDao: MyColorDao
+    private var startActvityTime : Long = 0
+    private var SkipCounter : Int = 0
+    private var colorsBuffer: ArrayList<MyColor> = ArrayList()
+
 
     private var buffer: ByteArray? = null
     private var camera: Camera? = null
@@ -46,10 +53,13 @@ class MainActivity : ComponentActivity() {
         colorIndicator = findViewById(R.id.colorIndicator)
         surfaceView = findViewById(R.id.sfvCameraLive)
 
+        //Db
+        val db = AppDatabase.getDatabase(this)
+        userDao = db.myColorDao()
+
 
         chartBtn.setOnClickListener { view ->
-            val intent = Intent(view.context, ChartActivity::class.java)
-            startActivity(intent)
+            writeData(true)
         }
 
         //Permission managing
@@ -70,6 +80,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        startActvityTime = System.currentTimeMillis()
 
         Log.i(TAG, "Resume")
     }
@@ -78,6 +89,7 @@ class MainActivity : ComponentActivity() {
         super.onPause()
 
         releaseCamera()
+        writeData(false)
 
         Log.i(TAG, "Pause")
     }
@@ -161,6 +173,7 @@ class MainActivity : ComponentActivity() {
         var avgGreen : Int
         var avgBlue : Int
         camera?.addCallbackBuffer(buffer)
+        var unixTime : Long = 0
         camera?.setPreviewCallbackWithBuffer(Camera.PreviewCallback { data, camera ->
             meanColors =  CameraFuncs.onPreviewFrame(data, camera)
 
@@ -169,6 +182,21 @@ class MainActivity : ComponentActivity() {
             avgBlue = meanColors[2]
 
             txtAverageColor.text = "$avgRed, $avgGreen, $avgBlue"
+
+
+            if(SkipCounter == 10)
+                SkipCounter = 0
+
+
+            if(SkipCounter == 0){
+                unixTime = System.currentTimeMillis()
+
+                unixTime = unixTime - startActvityTime
+
+                colorsBuffer.add(MyColor(createdActivityInMillis = startActvityTime, relativeToSpanInMillis =  unixTime, avgRed = avgRed, avgGreen = avgGreen, avgBlue = avgBlue))
+            }
+            SkipCounter++;
+
             // Aggiorna il colore della vista con i valori RGB
             updateColorIndicator(avgRed, avgGreen, avgBlue)
             camera.addCallbackBuffer(buffer)
@@ -183,6 +211,26 @@ class MainActivity : ComponentActivity() {
             release()
         }
         camera = null
+    }
+
+    private fun writeData(changeActivity: Boolean){
+        if(colorsBuffer.size > 0){
+            lifecycleScope.launch {
+                //userDao.deleteAll() //tolto tutti i dati precedenti
+                //scrivo in base ai 3 buffer
+
+                Log.i(TAG, "I colori che sto pe scrivere sono ${colorsBuffer.size} :)")
+
+                userDao.insertAll(colorsBuffer)
+                colorsBuffer.clear()
+
+                if(changeActivity)
+                {
+                    val intent = Intent(this@MainActivity, ChartActivity::class.java)
+                    startActivity(intent)
+                }
+            }
+        }
     }
 
     // Funzione per aggiornare il colore della vista
