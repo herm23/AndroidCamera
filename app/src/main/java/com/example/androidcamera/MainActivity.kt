@@ -46,7 +46,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        CameraFuncs.skipCounter = 0
         //Global vars init
         txtPermissions = findViewById(R.id.txtPermissions)
         txtAverageColor = findViewById(R.id.txtAverageColor)
@@ -58,8 +57,12 @@ class MainActivity : ComponentActivity() {
         val db = AppDatabase.getDatabase(this)
         userDao = db.myColorDao()
 
+        //Log.i(TAG, "Create")
+    }
 
-
+    override fun onResume() {
+        super.onResume()
+        startActvityTime = System.currentTimeMillis()
 
         //Permission managing
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA)
@@ -71,17 +74,7 @@ class MainActivity : ComponentActivity() {
             initHolder()
         }
 
-
-
-        Log.i(TAG, "Create")
-
-    }
-
-    override fun onResume() {
-        super.onResume()
-        startActvityTime = System.currentTimeMillis()
-
-        Log.i(TAG, "Resume")
+        //Log.i(TAG, "Resume")
     }
 
     override fun onPause() {
@@ -90,7 +83,7 @@ class MainActivity : ComponentActivity() {
         releaseCamera()
         writeData(false)
 
-        Log.i(TAG, "Pause")
+        //Log.i(TAG, "Pause")
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
@@ -104,7 +97,6 @@ class MainActivity : ComponentActivity() {
             } else {
                 txtPermissions.setText(R.string.permissios_denied)
                 Log.i(TAG, "CAMERA permission has been DENIED.")
-                // Handle lack of permission here
             }
         } else {
             super.onRequestPermissionsResult(requestCode, permissions, grantResults)
@@ -113,10 +105,9 @@ class MainActivity : ComponentActivity() {
 
     private fun initHolder(){
         //Definisco il listener per andare nei grafici solo se ho i permessi
-        //Prima rilascio la camera e poi scrivo i dati
         chartBtn.setOnClickListener { view ->
+            //Prima rilascio la camera e poi scrivo i dati
             releaseCamera()
-
             writeData(true)
         }
 
@@ -180,29 +171,14 @@ class MainActivity : ComponentActivity() {
         var avgGreen : Int
         var avgBlue : Int
         camera?.addCallbackBuffer(buffer)
-        var unixTime : Long = 0
         camera?.setPreviewCallbackWithBuffer(Camera.PreviewCallback { data, camera ->
             meanColors =  CameraFuncs.onPreviewFrame(data, camera)
-
             avgRed = meanColors[0]
             avgGreen = meanColors[1]
             avgBlue = meanColors[2]
 
             txtAverageColor.text = "$avgRed, $avgGreen, $avgBlue"
-
-
-            if(CameraFuncs.skipCounter == 10)
-                CameraFuncs.skipCounter = 0
-
-
-            if(CameraFuncs.skipCounter == 0){
-                unixTime = System.currentTimeMillis()
-
-                unixTime = unixTime - startActvityTime
-
-                colorsBuffer.add(MyColor(createdActivityInMillis = startActvityTime, relativeToSpanInMillis =  unixTime, avgRed = avgRed, avgGreen = avgGreen, avgBlue = avgBlue))
-            }
-            CameraFuncs.skipCounter++;
+            colorsBuffer.add(MyColor(createdColorInMillis = System.currentTimeMillis(), avgRed = avgRed, avgGreen = avgGreen, avgBlue = avgBlue))
 
             // Aggiorna il colore della vista con i valori RGB
             updateColorIndicator(avgRed, avgGreen, avgBlue)
@@ -223,10 +199,8 @@ class MainActivity : ComponentActivity() {
     private fun writeData(changeActivity: Boolean){
         if(colorsBuffer.size > 0){
             lifecycleScope.launch {
-                //userDao.deleteAll() //tolto tutti i dati precedenti
                 //scrivo in base ai 3 buffer
-
-                Log.i(TAG, "I colori che sto pe scrivere sono ${colorsBuffer.size} :)")
+                //Log.i(TAG, "I colori che sto pe scrivere sono ${colorsBuffer.size} :)")
 
                 userDao.insertAll(colorsBuffer)
                 colorsBuffer.clear()

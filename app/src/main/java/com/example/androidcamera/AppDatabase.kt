@@ -17,8 +17,7 @@ import androidx.room.RoomDatabase
 @Entity(tableName = "colors")
 data class MyColor(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val createdActivityInMillis: Long, //Tempo fisso in milli secondi, indica quando è stata creata l'attività
-    val relativeToSpanInMillis: Long, //tempo relativo in milli secondi rispetto a quello precedente, questo è stato creato per mostrare i dati nel grafico
+    val createdColorInMillis : Long,
     val avgRed: Int,
     val avgGreen: Int,
     val avgBlue: Int

@@ -59,9 +59,6 @@ class ChartActivity : ComponentActivity() {
 
         //Vars
         surfaceView = findViewById(R.id.sfvCameraLive)
-        CameraFuncs.skipCounter = 0
-
-        //Db
         //Db
         val db = AppDatabase.getDatabase(this)
         userDao = db.myColorDao()
@@ -75,29 +72,17 @@ class ChartActivity : ComponentActivity() {
             // Recupero tutti i colori salvati
             colorsBuffer = ArrayList(userDao.getAllColors())
 
-            Log.i(TAG, "Sono stati estratti ${colorsBuffer.size} colori :)")
+            //Log.i(TAG, "Sono stati estratti ${colorsBuffer.size} colori :)")
 
             //Controllo che i colori rientrino negli ultimi 5 minuti
-            val colorsToRemove = colorsBuffer.filter { (it.createdActivityInMillis + it.relativeToSpanInMillis) < (startActvityTime - SpanTimeMillis)  }
+            val colorsToRemove = colorsBuffer.filter { (it.createdColorInMillis) < (startActvityTime - SpanTimeMillis)  }
             colorsBuffer.removeAll(colorsToRemove.toSet())
             //Inizializzo i grafici in base al colore
-
-            var tmp : Long = 0
-            var modulateVal : Long = 0
-
-            if(colorsBuffer.size > 0){
-                tmp = colorsBuffer.last().relativeToSpanInMillis / SpanTimeMillis
-                startXOffset = colorsBuffer.last().relativeToSpanInMillis - (SpanTimeMillis * tmp)
-            }
-
-
             initChart()
-
-
             initHolder()
         }
 
-        Log.i(MainActivity.TAG, "Resume")
+        //Log.i(MainActivity.TAG, "Resume")
     }
 
     override fun onPause() {
@@ -106,7 +91,7 @@ class ChartActivity : ComponentActivity() {
         releaseCamera()
         writeData()
 
-        Log.i(MainActivity.TAG, "Pause")
+        //Log.i(MainActivity.TAG, "Pause")
     }
 
     private fun initHolder(){
@@ -123,7 +108,6 @@ class ChartActivity : ComponentActivity() {
         }
 
         override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-            // Gestisci i cambiamenti della superficie se necessario
         }
 
         override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -134,8 +118,6 @@ class ChartActivity : ComponentActivity() {
     private fun initChart(){
         // Inizializza il grafico
         lineChart = findViewById(R.id.lineChartR)
-
-
         redEntries = ArrayList<Entry>()
         greenEntries = ArrayList<Entry>()
         blueEntries = ArrayList<Entry>()
@@ -145,10 +127,10 @@ class ChartActivity : ComponentActivity() {
         var modulateVal : Long = 0
         var firstOldModulateVal : Long = 0
 
-       //Inizializzo i valori dei colori
+       //Inizializzo i valori dei colori vecchi
         for (color in colorsBuffer) {
-            tmp = ((color.createdActivityInMillis + color.relativeToSpanInMillis) - startActvityTime) / SpanTimeMillis
-            modulateVal = ((color.createdActivityInMillis + color.relativeToSpanInMillis) - startActvityTime) - (SpanTimeMillis * tmp)
+            tmp = (color.createdColorInMillis - startActvityTime) / SpanTimeMillis
+            modulateVal = (color.createdColorInMillis - startActvityTime) - (SpanTimeMillis * tmp)
 
             redEntries.add(Entry(modulateVal.toFloat(), color.avgRed.toFloat()))
             greenEntries.add(Entry(modulateVal.toFloat(), color.avgGreen.toFloat()))
@@ -165,30 +147,29 @@ class ChartActivity : ComponentActivity() {
             if(colorsBuffer.size == counter){
                 startXOffset = modulateVal
             }
-
         }
 
         redDataSet = LineDataSet(redEntries, "Red DataSet")
         redDataSet.color = Color.RED
         redDataSet.setCircleColor(Color.RED)
-        redDataSet.setDrawCircleHole(false) // Imposta il pallino pieno senza il pallino bianco
-        redDataSet.setDrawCircles(false) // Disegna i pallini
+        redDataSet.setDrawCircleHole(false)
+        redDataSet.setDrawCircles(false)
         redDataSet.setDrawValues(false)
 
 
         greenDataSet = LineDataSet(greenEntries, "Green Dataset")
         greenDataSet.color = Color.GREEN
         greenDataSet.setCircleColor(Color.GREEN)
-        greenDataSet.setDrawCircleHole(false) // Imposta il pallino pieno senza il pallino bianco
-        greenDataSet.setDrawCircles(false) // Disegna i pallini
+        greenDataSet.setDrawCircleHole(false)
+        greenDataSet.setDrawCircles(false)
         greenDataSet.setDrawValues(false)
 
 
         blueDataset = LineDataSet(blueEntries, "Blue Dataset")
         blueDataset.color = Color.BLUE
         blueDataset.setCircleColor(Color.BLUE)
-        blueDataset.setDrawCircleHole(false) // Imposta il pallino pieno senza il pallino bianco
-        blueDataset.setDrawCircles(false) // Disegna i pallini
+        blueDataset.setDrawCircleHole(false)
+        blueDataset.setDrawCircles(false)
         blueDataset.setDrawValues(false)
 
 
@@ -196,15 +177,13 @@ class ChartActivity : ComponentActivity() {
 
         lineChart.data = lineData
 
-        // Personalizza l'asse X
+        // Personalizzo l'asse x
         val xAxis = lineChart.xAxis
         xAxis.granularity = SpanTimeMillis.toFloat() / 5
         xAxis.position = XAxis.XAxisPosition.BOTTOM
         xAxis.axisMinimum = firstOldModulateVal.toFloat()
-        // Nascondi la descrizione del grafico
         lineChart.description.isEnabled = false
 
-        // Aggiorna il grafico
         lineChart.invalidate() // refresh del grafico
     }
 
@@ -237,31 +216,19 @@ class ChartActivity : ComponentActivity() {
         camera?.addCallbackBuffer(buffer)
         var unixTime : Long = 0
         camera?.setPreviewCallbackWithBuffer(Camera.PreviewCallback { data, camera ->
+            meanColors =  CameraFuncs.onPreviewFrame(data, camera)
 
-            if(CameraFuncs.skipCounter == 10)
-                CameraFuncs.skipCounter = 0
+            avgRed = meanColors[0]
+            avgGreen = meanColors[1]
+            avgBlue = meanColors[2]
 
+            unixTime = System.currentTimeMillis()
 
-            if(CameraFuncs.skipCounter == 0){
-                meanColors =  CameraFuncs.onPreviewFrame(data, camera)
+            unixTime = unixTime - startActvityTime + startXOffset
 
-                avgRed = meanColors[0]
-                avgGreen = meanColors[1]
-                avgBlue = meanColors[2]
+            //Log.i(TAG, "New Value ===> $unixTime")
 
-                unixTime = System.currentTimeMillis()
-
-    //            Log.i(TAG, "unixTime: $unixTime")
-    //            Log.i(TAG, "startActvityTime: $startActvityTime")
-
-                unixTime = unixTime - startActvityTime + startXOffset
-
-                Log.i(TAG, "New Value ===> $unixTime")
-
-                updateChart(unixTime, avgRed, avgGreen, avgBlue)
-            }
-
-            CameraFuncs.skipCounter++;
+            updateChart(unixTime, avgRed, avgGreen, avgBlue)
             camera.addCallbackBuffer(buffer)
         })
         camera?.startPreview()
@@ -294,16 +261,14 @@ class ChartActivity : ComponentActivity() {
         blueEntries.add(Entry(xCoord.toFloat(), avgBlue.toFloat()))
         blueDataset.addEntry(Entry(xCoord.toFloat(), avgBlue.toFloat()))
 
-        colorsBuffer.add(MyColor(createdActivityInMillis = startActvityTime, relativeToSpanInMillis =  xCoord, avgRed = avgRed, avgGreen = avgGreen, avgBlue = avgBlue))
+        colorsBuffer.add(MyColor(createdColorInMillis = (startActvityTime + xCoord), avgRed = avgRed, avgGreen = avgGreen, avgBlue = avgBlue))
 
-        // Imposta i limiti dell'asse x
+        // Imposto i limiti dell'asse x
         val xAxis = lineChart.xAxis
-
         xAxis.axisMinimum = minTime.toFloat()
-
         xAxis.axisMaximum = currentTime.toFloat()
 
-        // Aggiorna il grafico
+       //Refresh
         data.notifyDataChanged()
         lineChart.notifyDataSetChanged()
         lineChart.invalidate()
@@ -321,7 +286,7 @@ class ChartActivity : ComponentActivity() {
     private fun writeData(){
         lifecycleScope.launch {
             userDao.deleteAll() //tolto tutti i dati precedenti
-            //scrivo in base ai 3 buffer
+            //Scrivo in base al buffer corrente
             userDao.insertAll(colorsBuffer)
         }
     }

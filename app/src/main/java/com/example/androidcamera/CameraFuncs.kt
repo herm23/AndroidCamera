@@ -8,8 +8,6 @@ class  CameraFuncs {
 
     companion object{
 
-        var skipCounter : Int = 0
-
         fun onPreviewFrame(data: ByteArray, camera: Camera) : List<Int> {
             val params = camera.parameters
             val size = params.previewSize
