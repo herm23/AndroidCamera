@@ -5,7 +5,6 @@ import android.graphics.ImageFormat
 import android.hardware.Camera
 import android.icu.util.Calendar
 import android.os.Bundle
-import android.util.Log
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.activity.ComponentActivity
@@ -16,6 +15,7 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import kotlinx.coroutines.launch
+
 //Questa classe si occupa:
 //1) Mostra i grafici in real time (ultimi 5 minuti) dei colori medi
 //2) Legge/Scrive e cancella tutti i dati necessari per il punto (1)
@@ -138,7 +138,7 @@ class ChartActivity : ComponentActivity() {
 
             counter++
 
-            Log.i(TAG, "Old Value ===> $modulateVal")
+            //Log.i(TAG, "Old Value ===> $modulateVal")
 
             if(counter == 0){
                 firstOldModulateVal = modulateVal
