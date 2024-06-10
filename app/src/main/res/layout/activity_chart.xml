@@ -31,6 +31,24 @@
             android:layout_height="match_parent"/>
     </RelativeLayout>
 
+    <TextView
+        android:id="@+id/txtDescX"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif-black"
+        android:textStyle="normal"
+        android:textSize="16dp"
+        android:text="L'asse x rappresenta il tempo in ms." />
+
+    <TextView
+        android:id="@+id/txtDescY"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif-black"
+        android:textStyle="normal"
+        android:textSize="16dp"
+        android:text="L'asse y rappresenta i valori delle componenti RGB" />
+
     <LinearLayout
         xmlns:android="http://schemas.android.com/apk/res/android"
         android:layout_width="match_parent"
