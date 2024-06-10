@@ -1,5 +1,6 @@
 package com.example.androidcamera
 
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.ImageFormat
 import android.hardware.Camera
@@ -7,6 +8,7 @@ import android.icu.util.Calendar
 import android.os.Bundle
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.widget.Button
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import com.github.mikephil.charting.charts.LineChart
@@ -33,6 +35,7 @@ class ChartActivity : ComponentActivity() {
 
     private lateinit var surfaceView: SurfaceView
     private lateinit var surfaceHolder: SurfaceHolder
+    private lateinit var homeBtn: Button
 
     private lateinit var redDataSet: LineDataSet
     private lateinit var greenDataSet: LineDataSet
@@ -59,6 +62,7 @@ class ChartActivity : ComponentActivity() {
 
         //Vars
         surfaceView = findViewById(R.id.sfvCameraLive)
+        homeBtn = findViewById(R.id.BtnHome)
         //Db
         val db = AppDatabase.getDatabase(this)
         userDao = db.myColorDao()
@@ -89,12 +93,19 @@ class ChartActivity : ComponentActivity() {
         super.onPause()
 
         releaseCamera()
-        writeData()
+        writeData(false)
 
         //Log.i(MainActivity.TAG, "Pause")
     }
 
     private fun initHolder(){
+
+        homeBtn.setOnClickListener { view ->
+            //Prima rilascio la camera e poi scrivo i dati
+            releaseCamera()
+            writeData(true)
+        }
+
         surfaceHolder = surfaceView.holder
         surfaceHolder.addCallback(surfaceCallback)
         if (surfaceHolder.surface.isValid) {
@@ -283,11 +294,17 @@ class ChartActivity : ComponentActivity() {
         camera = null
     }
 
-    private fun writeData(){
+    private fun writeData(changeActivity: Boolean){
         lifecycleScope.launch {
             userDao.deleteAll() //tolto tutti i dati precedenti
             //Scrivo in base al buffer corrente
             userDao.insertAll(colorsBuffer)
+
+            if(changeActivity)
+            {
+                val intent = Intent(this@ChartActivity, MainActivity::class.java)
+                startActivity(intent)
+            }
         }
     }
 }
