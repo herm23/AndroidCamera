@@ -7,8 +7,6 @@ import android.graphics.ImageFormat
 import android.graphics.drawable.GradientDrawable
 import android.hardware.Camera
 import android.os.Bundle
-import android.os.Handler
-import android.os.HandlerThread
 import android.util.Log
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -40,10 +38,10 @@ class MainActivity : ComponentActivity() {
     private var startActvityTime : Long = 0
     private var colorsBuffer: ArrayList<MyColor> = ArrayList()
 
+
     private var buffer: ByteArray? = null
     private var camera: Camera? = null
-    private lateinit var cameraThread: HandlerThread
-    private lateinit var cameraHandler: Handler
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,11 +56,6 @@ class MainActivity : ComponentActivity() {
         //Db
         val db = AppDatabase.getDatabase(this)
         userDao = db.myColorDao()
-
-        // Inizializza e avvia HandlerThread per la fotocamera
-        cameraThread = HandlerThread("CameraThread")
-        cameraThread.start()
-        cameraHandler = Handler(cameraThread.looper)
 
         //Log.i(TAG, "Create")
     }
@@ -91,11 +84,6 @@ class MainActivity : ComponentActivity() {
         writeData(false)
 
         //Log.i(TAG, "Pause")
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        cameraThread.quitSafely()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
@@ -156,62 +144,56 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun openCameraANDPreview(holder: SurfaceHolder?) {
-        cameraHandler.post {
-            camera = Camera.open()
-            camera?.setDisplayOrientation(90)
-            val supportedPreviewSize = camera?.parameters?.getSupportedPreviewSizes()
-            val supportedPreviewFpsRange = camera?.parameters?.getSupportedPreviewFpsRange()
+    private fun openCameraANDPreview(holder: SurfaceHolder?){
+        camera = Camera.open()
+        camera?.setDisplayOrientation(90)
+        val supportedPreviewSize = camera?.parameters?.getSupportedPreviewSizes()
+        val supportedPreviewFpsRange = camera?.parameters?.getSupportedPreviewFpsRange()
 
-            val minWidth = supportedPreviewSize!!.last().width
-            val minHeight = supportedPreviewSize!!.last().height
 
-            camera?.parameters?.apply {
-                setPreviewSize(minWidth, minHeight)
-                setPreviewFpsRange(supportedPreviewFpsRange!!.last()[0], supportedPreviewFpsRange!!.last()[1])
-            }
+        val minWidth = supportedPreviewSize!!.last().width
+        val minHeight = supportedPreviewSize!!.last().height
 
-            if(holder != null) {
-                camera?.setPreviewDisplay(holder)
-            }
-
-            val params = camera?.parameters
-            val size = params?.previewSize
-            val bufferSize = size?.width!! * size.height * ImageFormat.getBitsPerPixel(params.previewFormat) / 8
-            buffer = ByteArray(bufferSize)
-            var meanColors: List<Int>
-            var avgRed: Int
-            var avgGreen: Int
-            var avgBlue: Int
-            camera?.addCallbackBuffer(buffer)
-            camera?.setPreviewCallbackWithBuffer(Camera.PreviewCallback { data, camera ->
-                meanColors = CameraFuncs.onPreviewFrame(data, camera)
-                avgRed = meanColors[0]
-                avgGreen = meanColors[1]
-                avgBlue = meanColors[2]
-
-                runOnUiThread {
-                    txtAverageColor.text = "$avgRed, $avgGreen, $avgBlue"
-                    colorsBuffer.add(MyColor(createdColorInMillis = System.currentTimeMillis(), avgRed = avgRed, avgGreen = avgGreen, avgBlue = avgBlue))
-
-                    // Aggiorna il colore della vista con i valori RGB
-                    updateColorIndicator(avgRed, avgGreen, avgBlue)
-                }
-                camera.addCallbackBuffer(buffer)
-            })
-            camera?.startPreview()
+        camera?.parameters?.apply {
+            setPreviewSize(minWidth, minHeight)
+            setPreviewFpsRange(supportedPreviewFpsRange!!.last()[0], supportedPreviewFpsRange!!.last()[1])
         }
+
+        if(holder != null)
+            camera?.setPreviewDisplay(holder)
+
+        val params = camera?.parameters
+        val size = params?.previewSize
+        val bufferSize = size?.width!! * size.height * ImageFormat.getBitsPerPixel(params.previewFormat) / 8
+        buffer = ByteArray(bufferSize)
+        var meanColors : List<Int>
+        var avgRed : Int
+        var avgGreen : Int
+        var avgBlue : Int
+        camera?.addCallbackBuffer(buffer)
+        camera?.setPreviewCallbackWithBuffer(Camera.PreviewCallback { data, camera ->
+            meanColors =  CameraFuncs.onPreviewFrame(data, camera)
+            avgRed = meanColors[0]
+            avgGreen = meanColors[1]
+            avgBlue = meanColors[2]
+
+            txtAverageColor.text = "$avgRed, $avgGreen, $avgBlue"
+            colorsBuffer.add(MyColor(createdColorInMillis = System.currentTimeMillis(), avgRed = avgRed, avgGreen = avgGreen, avgBlue = avgBlue))
+
+            // Aggiorna il colore della vista con i valori RGB
+            updateColorIndicator(avgRed, avgGreen, avgBlue)
+            camera.addCallbackBuffer(buffer)
+        })
+        camera?.startPreview()
     }
 
     private fun releaseCamera() {
-        cameraHandler.post {
-            camera?.apply {
-                stopPreview()
-                setPreviewCallbackWithBuffer(null)
-                release()
-            }
-            camera = null
+        camera?.apply {
+            stopPreview()
+            setPreviewCallbackWithBuffer(null)
+            release()
         }
+        camera = null
     }
 
     private fun writeData(changeActivity: Boolean){

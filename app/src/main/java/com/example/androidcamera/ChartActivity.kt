@@ -5,8 +5,7 @@ import android.graphics.ImageFormat
 import android.hardware.Camera
 import android.icu.util.Calendar
 import android.os.Bundle
-import android.os.Handler
-import android.os.HandlerThread
+import android.util.Log
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.activity.ComponentActivity
@@ -17,37 +16,42 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import kotlinx.coroutines.launch
-
 //Questa classe si occupa:
 //1) Mostra i grafici in real time (ultimi 5 minuti) dei colori medi
 //2) Legge/Scrive e cancella tutti i dati necessari per il punto (1)
 class ChartActivity : ComponentActivity() {
 
-    companion object {
-        const val TAG: String = "Chart Activity"
-        const val SpanTimeMillis: Int = 300000  // 5 minuti sono 300000 millisecondi
+    companion object{
+
+        const val TAG : String = "Chart Activity"
+        const val SpanTimeMillis : Int = 300000  //5 minuti sono 300000 millisecondi
     }
 
     private lateinit var lineChart: LineChart
-    private lateinit var entries: ArrayList<Entry>
+    private lateinit var entries : ArrayList<Entry>
+
+
     private lateinit var surfaceView: SurfaceView
     private lateinit var surfaceHolder: SurfaceHolder
+
     private lateinit var redDataSet: LineDataSet
     private lateinit var greenDataSet: LineDataSet
     private lateinit var blueDataset: LineDataSet
+
     private lateinit var redEntries: ArrayList<Entry>
     private lateinit var greenEntries: ArrayList<Entry>
     private lateinit var blueEntries: ArrayList<Entry>
     private lateinit var colorsBuffer: ArrayList<MyColor>
     private lateinit var userDao: MyColorDao
 
+
+
     private var buffer: ByteArray? = null
     private var camera: Camera? = null
     private var calendar: Calendar? = null
-    private var startActvityTime: Long = 0
-    private var startXOffset: Long = 0
-    private lateinit var cameraThread: HandlerThread
-    private lateinit var cameraHandler: Handler
+    private var startActvityTime : Long = 0
+    private var startXOffset : Long = 0
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,11 +62,6 @@ class ChartActivity : ComponentActivity() {
         //Db
         val db = AppDatabase.getDatabase(this)
         userDao = db.myColorDao()
-
-        // Inizializza e avvia HandlerThread per la fotocamera
-        cameraThread = HandlerThread("CameraThread")
-        cameraThread.start()
-        cameraHandler = Handler(cameraThread.looper)
     }
 
     override fun onResume() {
@@ -73,10 +72,12 @@ class ChartActivity : ComponentActivity() {
             // Recupero tutti i colori salvati
             colorsBuffer = ArrayList(userDao.getAllColors())
 
-            // Controllo che i colori rientrino negli ultimi 5 minuti
-            val colorsToRemove = colorsBuffer.filter { (it.createdColorInMillis) < (startActvityTime - SpanTimeMillis) }
+            //Log.i(TAG, "Sono stati estratti ${colorsBuffer.size} colori :)")
+
+            //Controllo che i colori rientrino negli ultimi 5 minuti
+            val colorsToRemove = colorsBuffer.filter { (it.createdColorInMillis) < (startActvityTime - SpanTimeMillis)  }
             colorsBuffer.removeAll(colorsToRemove.toSet())
-            // Inizializzo i grafici in base al colore
+            //Inizializzo i grafici in base al colore
             initChart()
             initHolder()
         }
@@ -93,12 +94,7 @@ class ChartActivity : ComponentActivity() {
         //Log.i(MainActivity.TAG, "Pause")
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        cameraThread.quitSafely()
-    }
-
-    private fun initHolder() {
+    private fun initHolder(){
         surfaceHolder = surfaceView.holder
         surfaceHolder.addCallback(surfaceCallback)
         if (surfaceHolder.surface.isValid) {
@@ -119,7 +115,7 @@ class ChartActivity : ComponentActivity() {
         }
     }
 
-    private fun initChart() {
+    private fun initChart(){
         // Inizializza il grafico
         lineChart = findViewById(R.id.lineChartR)
         redEntries = ArrayList<Entry>()
@@ -127,11 +123,11 @@ class ChartActivity : ComponentActivity() {
         blueEntries = ArrayList<Entry>()
 
         var counter: Int = 0
-        var tmp: Long = 0
-        var modulateVal: Long = 0
-        var firstOldModulateVal: Long = 0
+        var tmp : Long = 0
+        var modulateVal : Long = 0
+        var firstOldModulateVal : Long = 0
 
-        // Inizializzo i valori dei colori vecchi
+       //Inizializzo i valori dei colori vecchi
         for (color in colorsBuffer) {
             tmp = (color.createdColorInMillis - startActvityTime) / SpanTimeMillis
             modulateVal = (color.createdColorInMillis - startActvityTime) - (SpanTimeMillis * tmp)
@@ -142,13 +138,13 @@ class ChartActivity : ComponentActivity() {
 
             counter++
 
-            //Log.i(TAG, "Old Value ===> $modulateVal")
+            Log.i(TAG, "Old Value ===> $modulateVal")
 
-            if (counter == 0) {
+            if(counter == 0){
                 firstOldModulateVal = modulateVal
             }
 
-            if (colorsBuffer.size == counter) {
+            if(colorsBuffer.size == counter){
                 startXOffset = modulateVal
             }
         }
@@ -160,12 +156,14 @@ class ChartActivity : ComponentActivity() {
         redDataSet.setDrawCircles(false)
         redDataSet.setDrawValues(false)
 
+
         greenDataSet = LineDataSet(greenEntries, "Green Dataset")
         greenDataSet.color = Color.GREEN
         greenDataSet.setCircleColor(Color.GREEN)
         greenDataSet.setDrawCircleHole(false)
         greenDataSet.setDrawCircles(false)
         greenDataSet.setDrawValues(false)
+
 
         blueDataset = LineDataSet(blueEntries, "Blue Dataset")
         blueDataset.color = Color.BLUE
@@ -174,7 +172,8 @@ class ChartActivity : ComponentActivity() {
         blueDataset.setDrawCircles(false)
         blueDataset.setDrawValues(false)
 
-        val lineData = LineData(redDataSet, greenDataSet, blueDataset)
+
+        val lineData = LineData(redDataSet,greenDataSet , blueDataset)
 
         lineChart.data = lineData
 
@@ -188,112 +187,106 @@ class ChartActivity : ComponentActivity() {
         lineChart.invalidate() // refresh del grafico
     }
 
-    private fun initCam(holder: SurfaceHolder?) {
-        cameraHandler.post {
-            camera = Camera.open()
-            camera?.setDisplayOrientation(90)
-            val supportedPreviewSize = camera?.parameters?.getSupportedPreviewSizes()
-            val supportedPreviewFpsRange = camera?.parameters?.getSupportedPreviewFpsRange()
+    private fun initCam(holder: SurfaceHolder?){
+        camera = Camera.open()
+        camera?.setDisplayOrientation(90)
+        val supportedPreviewSize = camera?.parameters?.getSupportedPreviewSizes()
+        val supportedPreviewFpsRange = camera?.parameters?.getSupportedPreviewFpsRange()
 
-            val minWidth = supportedPreviewSize!!.last().width
-            val minHeight = supportedPreviewSize!!.last().height
 
-            camera?.parameters?.apply {
-                setPreviewSize(minWidth, minHeight)
-                setPreviewFpsRange(supportedPreviewFpsRange!!.last()[0], supportedPreviewFpsRange!!.last()[1])
-            }
+        val minWidth = supportedPreviewSize!!.last().width
+        val minHeight = supportedPreviewSize!!.last().height
 
-            if (holder != null) {
-                camera?.setPreviewDisplay(holder)
-            }
-
-            val params = camera?.parameters
-            val size = params?.previewSize
-            val bufferSize = size?.width!! * size.height * ImageFormat.getBitsPerPixel(params.previewFormat) / 8
-            buffer = ByteArray(bufferSize)
-            var meanColors: List<Int>
-            var avgRed: Int
-            var avgGreen: Int
-            var avgBlue: Int
-            camera?.addCallbackBuffer(buffer)
-            var unixTime: Long = 0
-            camera?.setPreviewCallbackWithBuffer(Camera.PreviewCallback { data, camera ->
-                meanColors = CameraFuncs.onPreviewFrame(data, camera)
-
-                avgRed = meanColors[0]
-                avgGreen = meanColors[1]
-                avgBlue = meanColors[2]
-
-                unixTime = System.currentTimeMillis()
-
-                unixTime = unixTime - startActvityTime + startXOffset
-
-                //Log.i(TAG, "New Value ===> $unixTime")
-
-                updateChart(unixTime, avgRed, avgGreen, avgBlue)
-                camera.addCallbackBuffer(buffer)
-            })
-            camera?.startPreview()
+        camera?.parameters?.apply {
+            setPreviewSize(minWidth, minHeight)
+            setPreviewFpsRange(supportedPreviewFpsRange!!.last()[0], supportedPreviewFpsRange!!.last()[1])
         }
+
+        if(holder != null)
+            camera?.setPreviewDisplay(holder)
+
+        val params = camera?.parameters
+        val size = params?.previewSize
+        val bufferSize = size?.width!! * size.height * ImageFormat.getBitsPerPixel(params.previewFormat) / 8
+        buffer = ByteArray(bufferSize)
+        var meanColors : List<Int>
+        var avgRed : Int
+        var avgGreen : Int
+        var avgBlue : Int
+        camera?.addCallbackBuffer(buffer)
+        var unixTime : Long = 0
+        camera?.setPreviewCallbackWithBuffer(Camera.PreviewCallback { data, camera ->
+            meanColors =  CameraFuncs.onPreviewFrame(data, camera)
+
+            avgRed = meanColors[0]
+            avgGreen = meanColors[1]
+            avgBlue = meanColors[2]
+
+            unixTime = System.currentTimeMillis()
+
+            unixTime = unixTime - startActvityTime + startXOffset
+
+            //Log.i(TAG, "New Value ===> $unixTime")
+
+            updateChart(unixTime, avgRed, avgGreen, avgBlue)
+            camera.addCallbackBuffer(buffer)
+        })
+        camera?.startPreview()
     }
 
     // Funzione per aggiornare il grafico con nuovi dati
     fun updateChart(xCoord: Long, avgRed: Int, avgGreen: Int, avgBlue: Int) {
-        runOnUiThread {
-            val data = lineChart.data
+        val data = lineChart.data
 
-            val currentTime = System.currentTimeMillis() - startActvityTime
-            val minTime = currentTime - SpanTimeMillis
+        val currentTime = System.currentTimeMillis() - startActvityTime
+        val minTime = currentTime - SpanTimeMillis
 
-            // Rimuove le vecchie entry in base allo span di tempo
-            val redEntriesToRemove = redEntries.filter { it.x < minTime }
-            redEntries.removeAll(redEntriesToRemove.toSet())
+        // Rimuove le vecchie entry in base allo span di tempo
+        val redEntriesToRemove = redEntries.filter { it.x < minTime }
+        redEntries.removeAll(redEntriesToRemove.toSet())
 
-            val greenEntriesToRemove = greenEntries.filter { it.x < minTime }
-            greenEntries.removeAll(greenEntriesToRemove.toSet())
+        val greenEntriesToRemove = greenEntries.filter { it.x < minTime }
+        greenEntries.removeAll(greenEntriesToRemove.toSet())
 
-            val blueEntriesToRemove = blueEntries.filter { it.x < minTime }
-            blueEntries.removeAll(blueEntriesToRemove.toSet())
+        val blueEntriesToRemove = blueEntries.filter { it.x < minTime }
+        blueEntries.removeAll(blueEntriesToRemove.toSet())
 
-            // Aggiungi le nuove entry
-            redEntries.add(Entry(xCoord.toFloat(), avgRed.toFloat()))
-            redDataSet.addEntry(Entry(xCoord.toFloat(), avgRed.toFloat()))
+        // Aggiungi le nuove entry
+        redEntries.add(Entry(xCoord.toFloat(), avgRed.toFloat()))
+        redDataSet.addEntry(Entry(xCoord.toFloat(), avgRed.toFloat()))
 
-            greenEntries.add(Entry(xCoord.toFloat(), avgGreen.toFloat()))
-            greenDataSet.addEntry(Entry(xCoord.toFloat(), avgGreen.toFloat()))
+        greenEntries.add(Entry(xCoord.toFloat(), avgGreen.toFloat()))
+        greenDataSet.addEntry(Entry(xCoord.toFloat(), avgGreen.toFloat()))
 
-            blueEntries.add(Entry(xCoord.toFloat(), avgBlue.toFloat()))
-            blueDataset.addEntry(Entry(xCoord.toFloat(), avgBlue.toFloat()))
+        blueEntries.add(Entry(xCoord.toFloat(), avgBlue.toFloat()))
+        blueDataset.addEntry(Entry(xCoord.toFloat(), avgBlue.toFloat()))
 
-            colorsBuffer.add(MyColor(createdColorInMillis = (startActvityTime + xCoord), avgRed = avgRed, avgGreen = avgGreen, avgBlue = avgBlue))
+        colorsBuffer.add(MyColor(createdColorInMillis = (startActvityTime + xCoord), avgRed = avgRed, avgGreen = avgGreen, avgBlue = avgBlue))
 
-            // Imposto i limiti dell'asse x
-            val xAxis = lineChart.xAxis
-            xAxis.axisMinimum = minTime.toFloat()
-            xAxis.axisMaximum = currentTime.toFloat()
+        // Imposto i limiti dell'asse x
+        val xAxis = lineChart.xAxis
+        xAxis.axisMinimum = minTime.toFloat()
+        xAxis.axisMaximum = currentTime.toFloat()
 
-            // Refresh
-            data.notifyDataChanged()
-            lineChart.notifyDataSetChanged()
-            lineChart.invalidate()
-        }
+       //Refresh
+        data.notifyDataChanged()
+        lineChart.notifyDataSetChanged()
+        lineChart.invalidate()
     }
 
     private fun releaseCamera() {
-        cameraHandler.post {
-            camera?.apply {
-                stopPreview()
-                setPreviewCallbackWithBuffer(null)
-                release()
-            }
-            camera = null
+        camera?.apply {
+            stopPreview()
+            setPreviewCallbackWithBuffer(null)
+            release()
         }
+        camera = null
     }
 
-    private fun writeData() {
+    private fun writeData(){
         lifecycleScope.launch {
-            userDao.deleteAll() // tolto tutti i dati precedenti
-            // Scrivo in base al buffer corrente
+            userDao.deleteAll() //tolto tutti i dati precedenti
+            //Scrivo in base al buffer corrente
             userDao.insertAll(colorsBuffer)
         }
     }
